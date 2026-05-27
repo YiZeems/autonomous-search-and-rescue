@@ -1,0 +1,31 @@
+# apriltag_ros (christianrauch/apriltag_ros, packaged as ros-humble-apriltag-ros)
+# Configuration for IA712 Project B Search & Rescue.
+#
+# Family choice (per doc/orig/pistes_projet-b.md §4.4): tag36h11 — robust, low
+# false-positive rate, the de-facto standard in robotics.
+#
+# IDs 0..4 are reserved for the 3-5 "victim" markers in the disaster world.
+# Edit the `tag.ids` / `frames` / `sizes` lists as new tags are spawned.
+
+/**:
+  ros__parameters:
+    image_transport: raw
+    family: 36h11
+    size: 0.16        # 16 cm side length (good detection up to ~2 m, per pistes §4.4)
+    max_hamming: 0
+
+    detector:
+      threads: 2
+      decimate: 2.0
+      blur: 0.0
+      refine: true
+      sharpening: 0.25
+      debug: false
+
+    pose_estimation_method: pnp
+
+    # Victim tag registry — keep in sync with spawned models in team_b_world/models/.
+    tag:
+      ids:    [0,       1,       2,       3,       4]
+      frames: [victim_0, victim_1, victim_2, victim_3, victim_4]
+      sizes:  [0.16,    0.16,    0.16,    0.16,    0.16]

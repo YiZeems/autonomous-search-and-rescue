@@ -1,0 +1,45 @@
+# ROS 2 / colcon build artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Third-party packages imported via `vcs import` (see ros2_ws/team_b.repos)
+ros2_ws/src/third_party/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+.pytest_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Experiments — keep folder skeleton, ignore content
+experiments/runs/*
+!experiments/runs/.gitkeep
+experiments/plots/*
+!experiments/plots/.gitkeep
+
+# ROS bags
+*.bag
+*.db3
+*.mcap
+
+# Reports build artifacts
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.toc
+docs/report/*.synctex.gz
