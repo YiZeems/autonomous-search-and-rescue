@@ -1,0 +1,5 @@
+frontier_explorer_node:
+  ros__parameters:
+    min_frontier_size: 3
+    goal_timeout_sec: 30.0
+    coverage_stop_threshold: 0.90

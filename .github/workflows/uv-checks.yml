@@ -1,0 +1,30 @@
+name: UV Checks
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+
+jobs:
+  uv-tests:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python 3.10
+        run: uv python install 3.10
+
+      - name: Sync development environment
+        run: uv sync --group dev
+
+      - name: Run lightweight tests
+        run: uv run --group dev pytest
+
+      - name: Run ruff
+        run: uv run --group dev ruff check .

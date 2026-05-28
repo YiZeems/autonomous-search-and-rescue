@@ -1,0 +1,11 @@
+coverage_evaluator_node:
+  ros__parameters:
+    exclude_occupied_from_denominator: false
+
+result_exporter_node:
+  ros__parameters:
+    output_dir: "results"
+
+rviz_marker_node:
+  ros__parameters:
+    marker_topic: "/visualization_marker_array"

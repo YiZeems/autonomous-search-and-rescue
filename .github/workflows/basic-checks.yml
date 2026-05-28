@@ -1,0 +1,72 @@
+name: Basic Checks
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+  push:
+    branches:
+      - dev
+
+jobs:
+  basic-checks:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check forbidden ROS generated folders
+        run: |
+          test ! -d ros2_ws/build
+          test ! -d ros2_ws/install
+          test ! -d ros2_ws/log
+
+      - name: Check required files
+        run: |
+          test -f README.md
+          test -f CONTRIBUTING.md
+          test -f LICENSE
+          test -f docs/START_HERE.md
+          test -f docs/project.md
+          test -f docs/team_roles.md
+          test -f docs/validation.md
+          test -f docs/INSTALLATION.md
+          test -f docs/architecture_questions_and_decisions.md
+          test -f docs/testing_guide.md
+          test -f docs/simulation_setup.md
+          test -f docs/interfaces.md
+          test -f ros2_ws/src/ia712_search_rescue/package.xml
+          test -f ros2_ws/src/ia712_search_rescue/setup.py
+          test -d ros2_ws/src/ia712_search_rescue/launch
+          test -d ros2_ws/src/ia712_search_rescue/config
+          test -d ros2_ws/src/ia712_search_rescue/ia712_search_rescue
+          test -d ros2_ws/src/ia712_search_rescue/behavior_trees
+
+      - name: Python syntax check without writing pycache
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          roots = [Path('ros2_ws/src/ia712_search_rescue/ia712_search_rescue'), Path('scripts')]
+          for root in roots:
+              for path in root.rglob('*.py'):
+                  ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+                  print(f'OK syntax: {path}')
+          PY
+
+      - name: Check no Python cache files
+        run: |
+          if find . \( -name '__pycache__' -o -name '*.pyc' \) | grep -q .; then
+            echo 'Python cache files must not be committed.'
+            find . \( -name '__pycache__' -o -name '*.pyc' \)
+            exit 1
+          fi
+
+      - name: Check shell scripts are executable and valid
+        run: |
+          test -x scripts/run.sh
+          for f in scripts/sh/*.sh; do test -x "$f"; done
+          bash -n scripts/run.sh
+          for f in scripts/sh/*.sh; do bash -n "$f"; done

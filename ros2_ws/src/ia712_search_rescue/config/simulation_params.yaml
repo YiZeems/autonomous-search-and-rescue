@@ -1,0 +1,5 @@
+simulation:
+  ros__parameters:
+    turtlebot3_model: "waffle_pi"
+    world: "house"
+    note: "Default project smoke-test world. Use world/base for the basic TurtleBot3 demo world."

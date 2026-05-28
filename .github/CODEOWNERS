@@ -1,0 +1,25 @@
+# A owns integration and critical files.
+* @YiZeems
+
+/README.md @YiZeems
+/CONTRIBUTING.md @YiZeems
+/AGENTS.md @YiZeems
+/.github/ @YiZeems
+/ros2_ws/src/ia712_search_rescue/package.xml @YiZeems
+/ros2_ws/src/ia712_search_rescue/setup.py @YiZeems
+/ros2_ws/src/ia712_search_rescue/setup.cfg @YiZeems
+/ros2_ws/src/ia712_search_rescue/launch/bringup.launch.py @YiZeems
+/ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py @YiZeems
+/ros2_ws/src/ia712_search_rescue/config/nav2_params.yaml @YiZeems
+/ros2_ws/src/ia712_search_rescue/config/slam_params.yaml @YiZeems
+/docs/interfaces.md @YiZeems
+
+# Behavior Tree and shell entrypoints
+/ros2_ws/src/ia712_search_rescue/behavior_trees/ @YiZeems
+/ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/ @YiZeems
+/ros2_ws/src/ia712_search_rescue/launch/bt.launch.py @YiZeems
+/ros2_ws/src/ia712_search_rescue/config/bt_params.yaml @YiZeems
+/scripts/run.sh @YiZeems
+/scripts/sh/ @YiZeems
+
+/docs/INSTALLATION.md @YiZeems
