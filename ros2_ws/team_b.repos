@@ -1,0 +1,34 @@
+# Third-party ROS 2 packages to vendor under ros2_ws/src/third_party/
+#
+# Pr. Zhi Yan (Projet_B_FR.txt) :
+#   « télécharger les paquets depuis GitHub, qui est open source bien sûr.
+#     Ensuite, mettez-les dans votre workspace ROS, compilez-les, et
+#     exécutez-les comme un nœud. »
+#
+# Note: apriltag_ros is NOT here — install it via apt:
+#   sudo apt install ros-humble-apriltag-ros
+# (see README "Prérequis").
+#
+# Usage:
+#   cd ros2_ws
+#   mkdir -p src/third_party
+#   vcs import src/third_party < team_b.repos
+#   colcon build --symlink-install
+#
+# src/third_party/ is gitignored — these packages are NOT committed.
+
+repositories:
+
+  # Frontier-based exploration baseline (greedy heuristic).
+  # No apt package on Humble — must be vendored.
+  m-explore-ros2:
+    type: git
+    url: https://github.com/robo-friends/m-explore-ros2.git
+    version: main
+
+  # RRT-based exploration — optional, mentioned by Pr. Yan as alternative algorithm.
+  # Uncomment to also build it for the bonus comparison.
+  # rrt_exploration_ros2:
+  #   type: git
+  #   url: https://github.com/devkapupara/rrt_exploration_ROS2.git
+  #   version: main

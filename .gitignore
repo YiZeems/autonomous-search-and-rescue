@@ -1,13 +1,27 @@
-# ROS 2 generated folders
+# ROS 2 / colcon build artifacts
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
 
+# Third-party packages imported via `vcs import` (see ros2_ws/team_b.repos)
+ros2_ws/src/third_party/
+
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.pyo
 *.egg-info/
+*.egg
+.pytest_cache/
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*~
 
 # OS
 .DS_Store
@@ -20,13 +34,10 @@ frames_*.pdf
 # Claude Code AI assistant session memory (local only)
 .claude/
 
-# IDE
-.vscode/
-.idea/
-
-# ROS bags and databases
+# ROS bags
 *.bag
 *.db3
+*.mcap
 *.sqlite3
 
 # Generated run outputs: keep README and curated examples only
@@ -35,9 +46,21 @@ results/*
 !results/examples/
 !results/examples/**
 
+# Experiments — keep folder skeleton, ignore content
+experiments/runs/*
+!experiments/runs/.gitkeep
+experiments/plots/*
+!experiments/plots/.gitkeep
+
+# Reports build artifacts
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.toc
+docs/report/*.synctex.gz
+
 # uv / local Python environment
 .venv/
-.pytest_cache/
 
 # Local machine-specific project config
 config/local_env.sh
