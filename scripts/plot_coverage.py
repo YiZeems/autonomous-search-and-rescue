@@ -3,7 +3,7 @@
 
 Input priority:
 1. results/coverage_over_time.csv
-2. ros2_ws/src/ia712_search_rescue/test_data/fake_coverage_over_time.csv
+2. ros2_ws/src/rescue_robot/test_data/fake_coverage_over_time.csv
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ def read_rows(path: Path) -> list[dict[str, str]]:
 def main() -> None:
     path = Path('results/coverage_over_time.csv')
     if not path.exists():
-        path = Path('ros2_ws/src/ia712_search_rescue/test_data/fake_coverage_over_time.csv')
+        path = Path('ros2_ws/src/rescue_robot/test_data/fake_coverage_over_time.csv')
 
     rows = read_rows(path)
     print(f'Loaded {len(rows)} coverage rows from {path}')

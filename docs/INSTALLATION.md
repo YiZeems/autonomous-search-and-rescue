@@ -96,16 +96,18 @@ If this script fails because ROS apt sources are missing, finish the ROS 2 Humbl
 
 ## 3. Configure TurtleBot3 model
 
-For quick tests, use Burger:
+This project requires **Waffle Pi** (not Burger) because the victim detection pipeline needs a simulated camera.
 
 ```bash
 export TURTLEBOT3_MODEL=waffle_pi
 ```
 
-To make it persistent:
+To make it persistent, add to your shell config (`~/.bashrc` or `~/.zshrc`):
 
 ```bash
 echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.bashrc
+# or for zsh:
+echo 'export TURTLEBOT3_MODEL=waffle_pi' >> ~/.zshrc
 ```
 
 ## 4. Build the ROS 2 workspace
@@ -401,43 +403,52 @@ uv python install 3.10
 ### Branches
 
 ```text
-main           stable demo only
-dev            integration branch — managed by A
-a-integration  A's working branch
-b-exploration  B's working branch
-c-simulation   C's working branch
-d-results      D's working branch
+main           stable demo only — protected, PR required
+dev            integration branch — protected, PR required
+dev/yimou      Yimou's working branch
+dev/julien     Julien's working branch
+dev/hugo       Hugo's working branch
+dev/paul       Paul's working branch
 ```
 
-### Daily workflow for B / C / D
+### Clone and set up your branch
 
 ```bash
-git pull
-# ... make changes in your folder ...
-git status
-git add .
-git commit -m "update my module"
-git push
+git clone https://github.com/YiZeems/autonomous-search-and-rescue.git
+cd autonomous-search-and-rescue
+git checkout dev/<your-name>
 ```
 
-### A's integration workflow
+### Daily workflow
+
+```bash
+git pull origin dev/<your-name>
+# ... make changes in your module folder ...
+git add .
+git commit -m "feat: describe what you did"
+git push origin dev/<your-name>
+```
+
+Then open a Pull Request from `dev/<your-name>` → `dev` on GitHub.
+
+### Integration workflow (Yimou / A role)
 
 ```bash
 git checkout dev
 git pull origin dev
-git merge b-exploration
+git merge dev/julien     # after PR is approved
 ./scripts/run.sh build
 ./scripts/run.sh mock
 git push origin dev
 ```
 
-Repeat for `c-simulation` and `d-results`.
+Repeat for each member's branch.
 
-### When to merge
+### When to merge to dev
 
-Merge into `dev` when a module has a small stable update (skeleton starts, launch runs, mock works). Merge `dev` into `main` only at stable milestones.
+Merge when a module has a stable small update: skeleton starts, launch runs, mock works. Merge `dev` → `main` only at stable milestones.
 
-### Files only A should touch
+### Files only A (Yimou) should touch
 
 `README.md`, `CONTRIBUTING.md`, `.github/`, `package.xml`, `setup.py`, `launch/bringup.launch.py`, `launch/mock_system.launch.py`, `docs/interfaces.md`.
 

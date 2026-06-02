@@ -21,7 +21,7 @@ def load_victims(path: Path) -> list[dict[str, str]]:
 def main() -> None:
     victims_path = Path("results/victims_detected.csv")
     if not victims_path.exists():
-        victims_path = Path("ros2_ws/src/ia712_search_rescue/test_data/fake_victims_detected.csv")
+        victims_path = Path("ros2_ws/src/rescue_robot/test_data/fake_victims_detected.csv")
 
     victims = load_victims(victims_path)
     print(f"Loaded {len(victims)} victims from {victims_path}")

@@ -1,0 +1,16 @@
+# Waypoints for TurtleBot4 — warehouse world (Ignition Gazebo Fortress).
+# Robot spawns at (0, 0) by default in the warehouse world.
+# Path makes a broad sweep of the warehouse aisles.
+#
+# Tip: use RViz2 "Publish Point" tool (click on the map) to pick coordinates,
+# then update this file with the values you want.
+#
+# Format: x, y (metres), yaw (radians, 0=east, pi/2=north, pi=west)
+
+waypoints:
+  - {x:  2.0,  y:  0.0,  yaw: 0.0}       # aisle 1 right
+  - {x:  4.0,  y:  0.0,  yaw: 0.0}       # end of aisle 1
+  - {x:  4.0,  y:  2.0,  yaw: 1.5708}    # cross aisle north
+  - {x:  2.0,  y:  2.0,  yaw: 3.1416}    # aisle 2 middle
+  - {x:  0.0,  y:  2.0,  yaw: 3.1416}    # aisle 2 left
+  - {x:  0.0,  y:  0.0,  yaw: -1.5708}   # return to origin

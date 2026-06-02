@@ -25,6 +25,9 @@ Commands:
   check-tb3    Check TurtleBot3 Gazebo availability, including optional overlay
   check-tb4    Check TurtleBot4 simulator availability, including optional overlay
   camera-check Check whether Waffle Pi camera/image topics are visible
+  demo         Launch FULL demo in one command: Gazebo+SLAM+Nav2+RViz2+waypoints [headless]
+  demo-tb4     Launch FULL TurtleBot4 demo: Ignition Gazebo+SLAM+Nav2+RViz2 [headless] [model]
+  waypoint     Send predefined waypoint path to Nav2 (Nav2 must be running) [file] [loop]
   rviz         Launch RViz2 with the project configuration (run in a separate terminal)
   navigation   Launch navigation module
   exploration  Launch exploration module
@@ -37,12 +40,15 @@ Commands:
 USAGE
 }
 
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
   usage
   exit 1
 fi
 
 case "$1" in
+  demo) "${SCRIPT_DIR}/sh/run_demo.sh" "${2:-false}" ;;
+  demo-tb4) "${SCRIPT_DIR}/sh/run_demo_tb4.sh" "${2:-lite}" ;;
+  waypoint) "${SCRIPT_DIR}/sh/run_waypoint.sh" "${2:-}" "${3:-false}" ;;
   install-apt) "${SCRIPT_DIR}/sh/install_apt_dependencies.sh" ;;
   doctor-env) "${SCRIPT_DIR}/sh/doctor_env.sh" ;;
   build) "${SCRIPT_DIR}/sh/build.sh" ;;

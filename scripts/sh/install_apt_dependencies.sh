@@ -30,13 +30,24 @@ sudo apt install -y \
 # TurtleBot3 Gazebo packages are usually available on AMD64/WSL2, but may be
 # missing from apt on ARM64. Install them only when apt can locate them.
 optional_packages=(
+  # TurtleBot3 Gazebo Classic simulation
   ros-humble-turtlebot3-gazebo
   ros-humble-turtlebot3-simulations
   ros-humble-turtlebot3-bringup
   ros-humble-turtlebot3-description
   ros-humble-teleop-twist-keyboard
+  # TurtleBot4 + Ignition Gazebo Fortress (works on ARM64 via apt)
+  libignition-gazebo6
   ros-humble-turtlebot4-simulator
-  ros-humble-turtlebot4-desktop
+  ros-humble-turtlebot4-ignition-bringup
+  ros-humble-turtlebot4-ignition-gui-plugins
+  ros-humble-turtlebot4-ignition-toolbox
+  ros-humble-turtlebot4-description
+  ros-humble-ros-ign-bridge
+  ros-humble-ros-ign-gazebo
+  ros-humble-irobot-create-ignition-bringup
+  ros-humble-irobot-create-msgs
+  ros-humble-irobot-create-nodes
 )
 
 available_optional=()

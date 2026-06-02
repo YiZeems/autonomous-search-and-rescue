@@ -30,10 +30,10 @@ def main() -> None:
 
     if not coverage_path.exists():
         coverage_path = Path(
-            "ros2_ws/src/ia712_search_rescue/test_data/fake_coverage_over_time.csv"
+            "ros2_ws/src/rescue_robot/test_data/fake_coverage_over_time.csv"
         )
     if not victims_path.exists():
-        victims_path = Path("ros2_ws/src/ia712_search_rescue/test_data/fake_victims_detected.csv")
+        victims_path = Path("ros2_ws/src/rescue_robot/test_data/fake_victims_detected.csv")
 
     summary = {
         "final_coverage": read_last_coverage(coverage_path),
