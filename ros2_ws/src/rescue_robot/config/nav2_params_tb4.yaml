@@ -1,13 +1,15 @@
-# Nav2 parameters for IA712 Project B — TurtleBot3 Waffle Pi with SLAM Toolbox
-# AMCL is disabled: localisation comes from slam_toolbox (map->odom->base_footprint TF).
-# This file is used by navigation.launch.py via nav2_bringup/navigation_launch.py.
+# Nav2 parameters for TurtleBot4 + Ignition Gazebo.
+# Frame changes vs nav2_params.yaml:
+#   robot_base_frame: turtlebot4/base_link  (diffdrive_controller namespace)
+#   odom_topic:       /turtlebot4/odom
+#   odom global_frame in local costmap / recoveries: turtlebot4/odom
 
 bt_navigator:
   ros__parameters:
     use_sim_time: true
     global_frame: map
-    robot_base_frame: base_link
-    odom_topic: /odom
+    robot_base_frame: turtlebot4/base_link
+    odom_topic: /turtlebot4/odom
     bt_loop_duration: 10
     default_server_timeout: 20
     wait_for_service_timeout: 1000
@@ -123,9 +125,35 @@ recoveries_server:
       plugin: "nav2_recoveries/BackUp"
     wait:
       plugin: "nav2_recoveries/Wait"
-    global_frame: odom
-    robot_base_frame: base_link
+    global_frame: turtlebot4/odom
+    robot_base_frame: turtlebot4/base_link
     transform_timeout: 0.1
+    use_sim_time: true
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 1.0
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+
+# Nav2 Humble uses "behavior_server" as the actual node name for recoveries
+behavior_server:
+  ros__parameters:
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "wait", "assisted_teleop"]
+    spin:
+      plugin: "nav2_behaviors/Spin"
+    backup:
+      plugin: "nav2_behaviors/BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors/DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors/Wait"
+    assisted_teleop:
+      plugin: "nav2_behaviors/AssistedTeleop"
+    global_frame: turtlebot4/odom
+    robot_base_frame: turtlebot4/base_link
+    transform_tolerance: 0.1
     use_sim_time: true
     simulate_ahead_time: 2.0
     max_rotational_vel: 1.0
@@ -137,8 +165,8 @@ local_costmap:
     ros__parameters:
       update_frequency: 5.0
       publish_frequency: 2.0
-      global_frame: odom
-      robot_base_frame: base_link
+      global_frame: turtlebot4/odom
+      robot_base_frame: turtlebot4/base_link
       use_sim_time: true
       rolling_window: true
       width: 3
@@ -180,7 +208,7 @@ global_costmap:
       update_frequency: 1.0
       publish_frequency: 1.0
       global_frame: map
-      robot_base_frame: base_link
+      robot_base_frame: turtlebot4/base_link
       use_sim_time: true
       robot_radius: 0.22
       resolution: 0.05

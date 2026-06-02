@@ -44,6 +44,7 @@ setup(
             'bt_supervisor_node = rescue_robot.bt.bt_supervisor_node:main',
             'waypoint_follower_node = rescue_robot.navigation.waypoint_follower_node:main',
             'tf_relay_node = rescue_robot.utils.tf_relay_node:main',
+            'cmd_vel_relay_node = rescue_robot.utils.cmd_vel_relay_node:main',
         ],
     },
 )
