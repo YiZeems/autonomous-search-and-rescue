@@ -12,6 +12,7 @@ Waypoints YAML format (config/waypoints.yaml):
 """
 
 import math
+import threading
 import time
 
 import rclpy
@@ -21,6 +22,7 @@ from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 
 
@@ -30,7 +32,7 @@ class WaypointFollowerNode(Node):
 
         self.declare_parameter("waypoints_file", "")
         self.declare_parameter("loop", False)
-        self.declare_parameter("goal_timeout_sec", 60.0)
+        self.declare_parameter("goal_timeout_sec", 90.0)
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._loop = self.get_parameter("loop").value
@@ -44,17 +46,14 @@ class WaypointFollowerNode(Node):
             f"loop={self._loop}, timeout={self._timeout}s"
         )
 
-        # Start after Nav2 is ready — wall-clock timer so it fires regardless
-        # of whether use_sim_time is enabled (sim clock may be paused at startup).
-        self._start_timer = self.create_timer(
-            1.0, self._start_once,
-            clock=rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.STEADY_TIME),
-        )
-        self._started = False
+        # Run navigation in a background thread so the executor stays free
+        # to process action client callbacks (spin_until_future_complete from
+        # within a timer callback blocks the executor in single-threaded mode).
+        self._nav_thread = threading.Thread(target=self._run, daemon=True)
+        self._nav_thread.start()
 
     def _load_waypoints(self, path: str) -> list:
         if not path:
-            # Fallback: predefined turtlebot3_house coverage path (map frame)
             return [
                 {"x": 0.0,  "y": 0.0,  "yaw": 0.0},
                 {"x": 1.5,  "y": 0.0,  "yaw": 0.0},
@@ -73,21 +72,14 @@ class WaypointFollowerNode(Node):
             self.get_logger().error(f"Failed to load waypoints from {path}: {e}")
             return []
 
-    def _start_once(self):
-        if self._started:
-            return
-        self._started = True
-        self.destroy_timer(self._start_timer)
-        self._run()
-
     def _run(self):
         if not self._waypoints:
             self.get_logger().warn("No waypoints to follow.")
             return
 
         self.get_logger().info("Waiting for Nav2 NavigateToPose action server...")
-        if not self._client.wait_for_server(timeout_sec=30.0):
-            self.get_logger().error("NavigateToPose server not available after 30s. Aborting.")
+        if not self._client.wait_for_server(timeout_sec=60.0):
+            self.get_logger().error("NavigateToPose server not available after 60s. Aborting.")
             return
 
         while True:
@@ -113,7 +105,17 @@ class WaypointFollowerNode(Node):
         goal.pose = self._make_pose(wp)
 
         future = self._client.send_goal_async(goal)
-        rclpy.spin_until_future_complete(self, future, timeout_sec=10.0)
+
+        # Block the background thread until the goal acceptance comes back.
+        # The executor (MultiThreadedExecutor in main) continues processing
+        # other callbacks concurrently, so action client callbacks are delivered.
+        deadline = time.time() + 30.0
+        while not future.done() and time.time() < deadline:
+            time.sleep(0.05)
+
+        if not future.done():
+            self.get_logger().warn("Goal acceptance timed out (30s).")
+            return False
 
         goal_handle = future.result()
         if goal_handle is None or not goal_handle.accepted:
@@ -121,7 +123,10 @@ class WaypointFollowerNode(Node):
             return False
 
         result_future = goal_handle.get_result_async()
-        rclpy.spin_until_future_complete(self, result_future, timeout_sec=self._timeout)
+
+        deadline = time.time() + self._timeout
+        while not result_future.done() and time.time() < deadline:
+            time.sleep(0.05)
 
         if not result_future.done():
             self.get_logger().warn(f"Goal timed out after {self._timeout}s.")
@@ -146,8 +151,10 @@ class WaypointFollowerNode(Node):
 def main(args=None):
     rclpy.init(args=args)
     node = WaypointFollowerNode()
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
