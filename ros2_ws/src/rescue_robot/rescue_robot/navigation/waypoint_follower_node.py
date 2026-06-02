@@ -15,6 +15,7 @@ import math
 import time
 
 import rclpy
+import rclpy.clock
 import yaml
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
@@ -43,8 +44,12 @@ class WaypointFollowerNode(Node):
             f"loop={self._loop}, timeout={self._timeout}s"
         )
 
-        # Start after Nav2 is ready
-        self._start_timer = self.create_timer(1.0, self._start_once)
+        # Start after Nav2 is ready — wall-clock timer so it fires regardless
+        # of whether use_sim_time is enabled (sim clock may be paused at startup).
+        self._start_timer = self.create_timer(
+            1.0, self._start_once,
+            clock=rclpy.clock.Clock(clock_type=rclpy.clock.ClockType.STEADY_TIME),
+        )
         self._started = False
 
     def _load_waypoints(self, path: str) -> list:
