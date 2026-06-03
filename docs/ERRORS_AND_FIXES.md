@@ -503,6 +503,45 @@ Cosmétique uniquement — n'empêche ni la navigation ni le SLAM. Contournement
 
 ---
 
+## 25. SLAM — carte figée à 7×7, `Message Filter dropping ... queue is full`
+
+**Symptôme**
+SLAM enregistre le capteur mais la carte reste 7×7, `map→odom` n'est pas publié
+et le log répète :
+```
+Message Filter dropping message: frame 'turtlebot4/rplidar_link/rplidar'
+  ... reason 'discarding message because the queue is full'
+```
+La navigation autonome sur un long parcours ne peut pas aboutir (costmap global
+trop petit).
+
+**Causes (deux, cumulatives)**
+1. **TF statiques en horloge murale** : les `static_transform_publisher` lancés
+   sans `use_sim_time:=true` estampillent leurs TF en temps mur, alors que le
+   buffer tf2 de SLAM est en temps sim → `scan → odom` ne se résout pas →
+   aucun scan intégré, `map→odom` jamais publié.
+2. **Débit LiDAR trop élevé** : `/scan` sort à ~62 Hz dans Ignition. Le
+   `MessageFilter` de slam_toolbox (file courte) déborde plus vite que les
+   lookups TF n'aboutissent → tous les scans sont jetés.
+
+**Solutions**
+1. Lancer les `static_transform_publisher` **avec** `--ros-args -p use_sim_time:=true`
+   (corrigé dans `run_demo_tb4.sh`). À lui seul, ceci rétablit `map→odom`.
+2. Réduire le débit des scans vus par SLAM :
+   - **option A (recommandée)** : abaisser `update_rate` du LiDAR dans le SDF, ou
+   - **option B** : intercaler un throttle 10 Hz (`/scan` → `/scan_throttled`,
+     republié au plus toutes les 0,1 s) et pointer SLAM dessus via
+     `scan_topic: /scan_throttled` **dans `slam_params_tb4.yaml`** (c'est un
+     paramètre du noeud, pas un argument de launch).
+
+**Statut**
+Cause #1 corrigée et vérifiée (`map→odom` rétabli). Cause #2 : le throttle 10 Hz
+est validé côté débit (8,6 Hz mesuré) ; le réglage `scan_topic` doit être posé
+dans le YAML pour être pris en compte. Limitation pré-existante de la simulation
+sur ce VM ARM64, indépendante du refactoring.
+
+---
+
 ## Résumé des fichiers modifiés
 
 | Fichier | Problème résolu |

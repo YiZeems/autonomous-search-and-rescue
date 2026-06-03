@@ -212,9 +212,13 @@ echo "  Topics: $(for t in /clock /scan /camera/image_raw /${NAMESPACE}/odom; do
 echo "[5/8] Static TF bridges + relays..."
 
 # a) turtlebot4/base_link ≡ base_link (connecte les deux arbres TF namespaced/non-namespaced)
+#    use_sim_time:=true est requis : sans lui les TF statiques portent l'horloge
+#    murale et le buffer tf2 (horloge sim) ne résout pas scan→odom → SLAM ne
+#    publie jamais map→odom (cf. ERRORS_AND_FIXES #7).
 ros2 run tf2_ros static_transform_publisher \
     --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 \
     --frame-id "${NAMESPACE}/base_link" --child-frame-id base_link \
+    --ros-args -p use_sim_time:=true \
     >"${LOGDIR}/stf1.log" 2>&1 &
 STF1_PID=$!
 
@@ -222,6 +226,7 @@ STF1_PID=$!
 ros2 run tf2_ros static_transform_publisher \
     --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 \
     --frame-id rplidar_link --child-frame-id "${NAMESPACE}/rplidar_link/rplidar" \
+    --ros-args -p use_sim_time:=true \
     >"${LOGDIR}/stf2.log" 2>&1 &
 STF2_PID=$!
 
