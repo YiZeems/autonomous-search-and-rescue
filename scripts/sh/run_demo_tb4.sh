@@ -114,13 +114,13 @@ _cleanup() {
         "${WP_PID:-}" "${RVIZ_PID:-}" "${NAV2_PID:-}" \
         "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" \
         "${STF2_PID:-}" "${STF1_PID:-}" \
-        "${SPAWN_PID:-}" "${BRIDGE_PID:-}" \
+        "${SPAWN_PID:-}" "${BRIDGE_PID:-}" "${GUI_PID:-}" \
         "${IGN_PID:-}" "${RSP_PID:-}" \
         "${COV_PID:-}" "${EXP_PID:-}" "${MRK_PID:-}"; do
         [ -n "${pid}" ] && kill "${pid}" 2>/dev/null || true
     done
     sleep 2
-    pkill -9 -f "ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|waypoint_follower|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
+    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|waypoint_follower|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
     echo "[demo-tb4] Arrêt terminé. Logs: ${LOGDIR}"
 }
 trap _cleanup INT TERM EXIT
@@ -153,14 +153,29 @@ sleep 6
 kill -0 "${RSP_PID}" 2>/dev/null \
     || { echo "[ERR] RSP mort"; tail -3 "${LOGDIR}/rsp.log"; exit 1; }
 
-# ── ÉTAPE 2 : Ignition server headless
-echo "[2/8] Ignition Gazebo server (headless, monde=${WORLD})..."
+# ── ÉTAPE 2 : Ignition server (toujours headless: physique + capteurs stables)
+echo "[2/8] Ignition Gazebo server (-s, monde=${WORLD})..."
 ign gazebo -s -r -v 2 "${WORLD_SDF}" >"${LOGDIR}/ign.log" 2>&1 &
 IGN_PID=$!
 echo "  PID=${IGN_PID} — attente 12 s"
 sleep 12
 kill -0 "${IGN_PID}" 2>/dev/null \
     || { echo "[ERR] Ignition mort"; tail -5 "${LOGDIR}/ign.log"; exit 1; }
+
+# ── ÉTAPE 2b : Client GUI Gazebo (optionnel) — moteur Ogre v1.
+#    Ogre2 (défaut) crashe sur le GPU virtuel Parallels ARM64 ; Ogre v1 + Mesa
+#    software GL fonctionne. La fenêtre Gazebo s'ouvre vraiment.
+#    Désactiver avec IA712_TB4_GUI=0 (CI / RAM limitée).
+if [ "${IA712_TB4_GUI:-1}" != "0" ]; then
+    echo "[2b/8] Client GUI Gazebo (Ogre v1)..."
+    LIBGL_ALWAYS_SOFTWARE=1 ign gazebo -g --render-engine ogre \
+        >"${LOGDIR}/ign_gui.log" 2>&1 &
+    GUI_PID=$!
+    sleep 6
+    kill -0 "${GUI_PID}" 2>/dev/null \
+        && echo "  GUI PID=${GUI_PID} — fenêtre Gazebo ouverte" \
+        || echo "  [WARN] GUI fermée (voir ${LOGDIR}/ign_gui.log) — la sim continue en headless"
+fi
 
 # ── ÉTAPE 3 : Clock bridge + spawn officiel
 echo "[3/8] Clock bridge + spawn via turtlebot4_spawn.launch.py..."

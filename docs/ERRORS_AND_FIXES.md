@@ -12,12 +12,20 @@ Répertoire des problèmes rencontrés pendant le développement et les tests de
 **Cause**  
 Le GPU virtuel Parallels (`1ab8:0010`) ne supporte pas OpenGL 3.3. Ogre2 (renderer par défaut d'Ignition) est incompatible.
 
-**Solution**  
-Lancer Ignition en mode serveur headless uniquement :
+**Solution (mise à jour — la GUI fonctionne avec Ogre v1)**
+Le serveur tourne toujours en headless (physique + capteurs stables), puis on
+attache un **client GUI** avec le moteur **Ogre v1** (et non Ogre2) + Mesa
+software GL — la fenêtre Gazebo s'ouvre réellement sans crash :
 ```bash
+# 1) serveur headless
 ign gazebo -s -r -v 2 world.sdf
+# 2) client GUI Ogre v1 (fenêtre visible)
+LIBGL_ALWAYS_SOFTWARE=1 ign gazebo -g --render-engine ogre
 ```
-RViz2 assure toute la visualisation côté ROS 2.
+Pré-requis pour que les meshes du robot s'affichent :
+`export IGN_GAZEBO_RESOURCE_PATH=/opt/ros/humble/share:...`.
+Câblé dans `run_demo_tb4.sh` (désactivable avec `IA712_TB4_GUI=0`).
+RViz2 reste la visualisation principale côté ROS 2 (carte, scan, caméra).
 
 ---
 
@@ -176,20 +184,45 @@ export PYTHONPATH="${WS}/build/rescue_robot:${PYTHONPATH}"
 
 ---
 
-## 10. SLAM map figée à 7×7 cellules (modèle `lite`)
+## 10. RPLIDAR auto-collision (self-hit) — pas de lidar/obstacles, carte figée 7×7
 
-**Symptôme**  
-La carte SLAM reste à 7×7 cellules (0.35 m × 0.35 m) quelle que soit la durée d'attente. Le robot ne voit aucun obstacle.
+> **Correctif d'une note antérieure erronée.** Il avait été écrit que seul le
+> modèle `lite` souffrait du self-hit et que `standard` le corrigeait. **C'est
+> faux** : mesures à l'appui (cf. ci-dessous), les **deux** modèles self-hittent.
 
-**Cause**  
-Le modèle `turtlebot4_lite` a un problème de self-hit RPLIDAR dans Ignition Gazebo : tous les rayons retournent `range_min` (0.164 m) car les rayons frappent le corps du robot.
+**Symptôme**
+Dans RViz, la caméra fonctionne mais **le LaserScan et les obstacles (costmaps)
+n'apparaissent jamais** ; la carte SLAM reste à 7×7 cellules (0,35 m). Le robot
+« ne voit » aucun mur.
 
-**Solution**  
-Utiliser le modèle `standard` :
+**Cause (diagnostiquée au niveau capteur Ignition)**
+Le RPLIDAR simulé retourne `range_min` (**0,164 m**) sur **641 des 642 rayons**,
+360°. Les rayons frappent immédiatement la géométrie de collision du robot
+lui-même. Vérifié exhaustivement — le problème est **indépendant** de :
+- le **monde** (`maze` ET `depot` ouvert → identique),
+- le **modèle** (`lite` ET `standard` → identique),
+- la **position de spawn** (origine, en l'air, etc.),
+- les **meshes** (`IGN_GAZEBO_RESOURCE_PATH` correct, 0 erreur de chargement → identique).
+
+C'est donc une auto-collision **intrinsèque** au modèle TB4 Ignition (URDF
+`gazebo:=ignition`) sur ce stack Fortress/ARM64 : le `<ray>` du rplidar_link
+voit les collisions du corps sous la portée minimale.
+
+**Vérification**
 ```bash
-MODEL=standard ./scripts/run.sh demo-tb4
+ign topic -e -t /world/<world>/model/turtlebot4/link/rplidar_link/sensor/rplidar/scan -n 1
+# → si toutes les valeurs valent 0.164 (range_min) : self-hit
 ```
-Vérification : `ign topic -e -t /world/maze/model/turtlebot4/link/rplidar_link/sensor/rplidar/scan -n 1` doit montrer des `ranges` > 0.164.
+
+**Solutions**
+- **Démo lidar+obstacles+SLAM qui marche** : utiliser le chemin **TurtleBot3 +
+  Gazebo Classic** du projet (`./scripts/run.sh demo`, LDS-01 sans self-hit) —
+  nécessite `ros-humble-turtlebot3-gazebo`.
+- **Garder TB4** : corriger le modèle amont (surélever la pose du `<ray>`
+  rplidar, ou poser un `<collide_bitmask>` distinct sur les collisions du corps
+  pour que les rayons les ignorent). Hors périmètre du code projet (fichiers
+  `/opt/ros/.../turtlebot4_description`).
+- La **caméra** TB4 fonctionne quoi qu'il arrive (indépendante des collisions).
 
 ---
 
