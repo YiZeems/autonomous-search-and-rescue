@@ -45,6 +45,40 @@ WAYPOINTS_FILE="${WS_DIR}/src/rescue_robot/config/waypoints_tb4_${WORLD}.yaml"
 
 LOGDIR=$(mktemp -d /tmp/ia712_demo_XXXX)
 
+# ── Fast-DDS UDP-only transport — disables shared memory (SHM) transport.
+#    Stale /dev/shm/fastrtps_port* files from previous sessions block the
+#    ign_ros2_control controller_manager from being reachable via service
+#    calls (service is listed but never responds). UDP is slower but stable.
+export FASTRTPS_DEFAULT_PROFILES_FILE="${REPO_ROOT}/config/fastdds_udp_only.xml"
+[ -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ] || \
+    FASTRTPS_DEFAULT_PROFILES_FILE="/tmp/fastdds_udp_only.xml"
+# Write fallback profile if needed
+if [ ! -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ]; then
+cat >"${FASTRTPS_DEFAULT_PROFILES_FILE}" <<'XML'
+<?xml version="1.0" encoding="UTF-8" ?>
+<profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
+    <transport_descriptors>
+        <transport_descriptor>
+            <transport_id>udp_only</transport_id>
+            <type>UDPv4</type>
+        </transport_descriptor>
+    </transport_descriptors>
+    <participant profile_name="default_profile" is_default_profile="true">
+        <rtps>
+            <userTransports>
+                <transport_id>udp_only</transport_id>
+            </userTransports>
+            <useBuiltinTransports>false</useBuiltinTransports>
+        </rtps>
+    </participant>
+</profiles>
+XML
+fi
+
+# ── Clean stale SHM files from previous sessions (must happen before any
+#    ROS 2 process starts to avoid zombie controller_manager services)
+find /dev/shm -name "fastrtps_port*" -delete 2>/dev/null || true
+
 # ── Workspace overlay — AMENT_PREFIX_PATH + PYTHONPATH avoids the NFS
 #    symlink issue in colcon's local_setup.bash on Parallels shared folders.
 export AMENT_PREFIX_PATH="${WS_INSTALL}/rescue_robot:${WS_INSTALL}/rescue_bringup:${WS_INSTALL}/rescue_world:${AMENT_PREFIX_PATH:-}"
