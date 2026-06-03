@@ -2,10 +2,11 @@ import csv
 import json
 from pathlib import Path
 
-import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray
 from std_msgs.msg import Float32
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class ResultExporterNode(Node):
@@ -70,17 +71,8 @@ class ResultExporterNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = ResultExporterNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.export_summary()
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    # Flush a final run_summary.json before the node is destroyed.
+    run_node(ResultExporterNode, args=args, on_shutdown=lambda node: node.export_summary())
 
 
 if __name__ == '__main__':

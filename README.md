@@ -31,7 +31,7 @@ Then by topic:
 - `docs/full_architecture.md` — complete layer-by-layer system architecture.
 - `docs/interfaces.md` — all ROS topics and file interfaces.
 - `docs/architecture_questions_and_decisions.md` — design decisions and professor critique.
-- `docs/ros2_package_structure.md` — explains the `ia712_search_rescue/ia712_search_rescue` path structure.
+- `docs/ros2_package_structure.md` — explains the `rescue_robot/rescue_robot` path structure.
 - `docs/simulation_setup.md` — AMD64/WSL2 vs ARM64 Gazebo setup, Waffle Pi vs Burger, TurtleBot4.
 - `docs/testing_guide.md` — how to test the scaffold and each module.
 - `docs/validation.md` — checklist before professor validation.
@@ -91,9 +91,9 @@ Each command calls a small executable script in `scripts/sh/`. This keeps testin
 The project-level Behavior Tree scaffold is located in:
 
 ```text
-ros2_ws/src/ia712_search_rescue/behavior_trees/search_and_rescue_bt.xml
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/bt_supervisor_node.py
-ros2_ws/src/ia712_search_rescue/launch/bt.launch.py
+ros2_ws/src/rescue_robot/behavior_trees/search_and_rescue_bt.xml
+ros2_ws/src/rescue_robot/rescue_robot/bt/bt_supervisor_node.py
+ros2_ws/src/rescue_robot/launch/bt.launch.py
 ```
 
 ## Mock system launch
@@ -102,7 +102,7 @@ This launch lets everyone test without waiting for Gazebo/Nav2/SLAM.
 ```bash
 cd ros2_ws
 source install/setup.bash
-ros2 launch ia712_search_rescue mock_system.launch.py
+ros2 launch rescue_robot mock_system.launch.py
 ```
 
 Expected topics:
@@ -117,7 +117,7 @@ ros2 topic list
 
 ## Final target launch
 ```bash
-ros2 launch ia712_search_rescue bringup.launch.py
+ros2 launch rescue_bringup bringup.launch.py
 ```
 
 At the beginning, `bringup.launch.py` may only include mock modules. It will progressively include simulation, SLAM, Nav2, exploration, detection, results, and Behavior Tree supervision.

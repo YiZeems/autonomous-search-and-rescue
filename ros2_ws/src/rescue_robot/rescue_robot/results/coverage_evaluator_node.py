@@ -1,7 +1,8 @@
-import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
 from std_msgs.msg import Float32
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class CoverageEvaluatorNode(Node):
@@ -40,16 +41,7 @@ class CoverageEvaluatorNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = CoverageEvaluatorNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(CoverageEvaluatorNode, args=args)
 
 
 if __name__ == '__main__':

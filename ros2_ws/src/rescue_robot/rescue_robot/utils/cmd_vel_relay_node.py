@@ -1,15 +1,19 @@
-"""Relay /cmd_vel → /turtlebot4/diffdrive_controller/cmd_vel_unstamped.
+"""Relay /cmd_vel -> /turtlebot4/diffdrive_controller/cmd_vel_unstamped.
 
-Nav2 controller_server publishes Twist on /cmd_vel.  TurtleBot4's
+Nav2's controller_server publishes Twist on /cmd_vel.  TurtleBot4's
 diffdrive_controller runs in the /turtlebot4 namespace and subscribes to
 cmd_vel_unstamped (Twist, not TwistStamped).  A direct relay bridges the gap
 without touching either node's configuration.
-"""
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
+Run alongside the TB4 simulation::
+
+    ros2 run rescue_robot cmd_vel_relay_node
+"""
 from geometry_msgs.msg import Twist
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
+
+from rescue_robot.utils.node_runner import run_node
+from rescue_robot.utils.topic_relay import TopicRelay
 
 _QOS = QoSProfile(
     depth=10,
@@ -18,33 +22,27 @@ _QOS = QoSProfile(
 )
 
 
-class CmdVelRelayNode(Node):
-    def __init__(self) -> None:
-        super().__init__('cmd_vel_relay_node')
-        self.pub = self.create_publisher(
-            Twist, '/turtlebot4/diffdrive_controller/cmd_vel_unstamped', _QOS
-        )
-        self.sub = self.create_subscription(Twist, '/cmd_vel', self._relay, _QOS)
-        self.get_logger().info(
-            'cmd_vel_relay_node: /cmd_vel → /turtlebot4/diffdrive_controller/cmd_vel_unstamped'
-        )
+class CmdVelRelayNode(TopicRelay):
+    """Relay Nav2 /cmd_vel to the namespaced diffdrive controller input."""
 
-    def _relay(self, msg: Twist) -> None:
-        self.pub.publish(msg)
+    def __init__(self) -> None:
+        super().__init__(
+            "cmd_vel_relay_node",
+            Twist,
+            "/cmd_vel",
+            "/turtlebot4/diffdrive_controller/cmd_vel_unstamped",
+            sub_qos=_QOS,
+            pub_qos=_QOS,
+            description=(
+                "cmd_vel_relay_node: /cmd_vel -> "
+                "/turtlebot4/diffdrive_controller/cmd_vel_unstamped"
+            ),
+        )
 
 
 def main(args=None) -> None:
-    rclpy.init(args=args)
-    node = CmdVelRelayNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(CmdVelRelayNode, args=args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

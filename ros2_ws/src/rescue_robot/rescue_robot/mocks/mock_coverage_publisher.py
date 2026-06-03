@@ -1,6 +1,7 @@
-import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class MockCoveragePublisher(Node):
@@ -19,16 +20,7 @@ class MockCoveragePublisher(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = MockCoveragePublisher()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(MockCoveragePublisher, args=args)
 
 
 if __name__ == '__main__':

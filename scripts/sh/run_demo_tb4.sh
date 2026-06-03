@@ -25,7 +25,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/_common.sh"
 source "${SCRIPT_DIR}/_turtlebot4_helper.sh"
 
-MODEL="${MODEL:-standard}"
+# Model: positional arg ($1) wins, then MODEL env, else 'standard'.
+# NOTE: the 'lite' model has an RPLIDAR self-hit bug in Ignition (all rays
+# return range_min) — 'standard' is required for SLAM to build a real map.
+MODEL="${1:-${MODEL:-standard}}"
 WORLD="${IA712_TB4_WORLD:-maze}"
 NAMESPACE="turtlebot4"
 

@@ -1,6 +1,7 @@
-import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray, Pose
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class MockVictimPublisher(Node):
@@ -25,16 +26,7 @@ class MockVictimPublisher(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = MockVictimPublisher()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(MockVictimPublisher, args=args)
 
 
 if __name__ == '__main__':

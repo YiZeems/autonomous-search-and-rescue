@@ -1,7 +1,8 @@
-import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray
 from visualization_msgs.msg import Marker, MarkerArray
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class RvizMarkerNode(Node):
@@ -60,16 +61,7 @@ class RvizMarkerNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = RvizMarkerNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(RvizMarkerNode, args=args)
 
 
 if __name__ == '__main__':

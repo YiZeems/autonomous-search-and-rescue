@@ -1,6 +1,7 @@
-import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float32
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class BtSupervisorNode(Node):
@@ -36,16 +37,7 @@ class BtSupervisorNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = BtSupervisorNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(BtSupervisorNode, args=args)
 
 
 if __name__ == '__main__':

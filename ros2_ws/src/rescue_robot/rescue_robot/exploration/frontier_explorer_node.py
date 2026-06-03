@@ -1,6 +1,7 @@
-import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import OccupancyGrid
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class FrontierExplorerNode(Node):
@@ -21,16 +22,7 @@ class FrontierExplorerNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = FrontierExplorerNode()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(FrontierExplorerNode, args=args)
 
 
 if __name__ == '__main__':

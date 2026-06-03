@@ -1,7 +1,8 @@
-import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 from nav_msgs.msg import OccupancyGrid
+
+from rescue_robot.utils.node_runner import run_node
 
 # SLAM toolbox publishes /map with Transient Local durability so late subscribers
 # (including RViz2) receive the last map on connect.  Mock must match or RViz
@@ -50,16 +51,7 @@ class MockMapPublisher(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = MockMapPublisher()
-    try:
-        rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    run_node(MockMapPublisher, args=args)
 
 
 if __name__ == '__main__':

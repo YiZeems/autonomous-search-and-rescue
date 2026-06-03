@@ -5,7 +5,7 @@
 # Format: x, y (metres), yaw (radians, 0=east, pi/2=north, pi=west)
 #
 # To use a custom path:
-#   ros2 launch ia712_search_rescue waypoint.launch.py waypoints_file:=/path/to/my_waypoints.yaml
+#   ros2 launch rescue_robot waypoint.launch.py waypoints_file:=/path/to/my_waypoints.yaml
 #
 # To add a waypoint: measure the (x,y) from RViz2 clicked_point topic,
 # pick yaw to orient the robot towards the next room.

@@ -15,8 +15,6 @@ import math
 import threading
 import time
 
-import rclpy
-import rclpy.clock
 import yaml
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
@@ -24,6 +22,8 @@ from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+
+from rescue_robot.utils.node_runner import run_node
 
 
 class WaypointFollowerNode(Node):
@@ -149,18 +149,9 @@ class WaypointFollowerNode(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = WaypointFollowerNode()
-    executor = MultiThreadedExecutor()
-    executor.add_node(node)
-    try:
-        executor.spin()
-    except KeyboardInterrupt:
-        pass
-    finally:
-        node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+    # MultiThreadedExecutor keeps the executor free to deliver action-client
+    # callbacks while the navigation loop runs in its background thread.
+    run_node(WaypointFollowerNode, args=args, executor_factory=MultiThreadedExecutor)
 
 
 if __name__ == "__main__":

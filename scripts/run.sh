@@ -47,7 +47,7 @@ fi
 
 case "$1" in
   demo) "${SCRIPT_DIR}/sh/run_demo.sh" "${2:-false}" ;;
-  demo-tb4) "${SCRIPT_DIR}/sh/run_demo_tb4.sh" "${2:-lite}" ;;
+  demo-tb4) "${SCRIPT_DIR}/sh/run_demo_tb4.sh" "${2:-standard}" ;;
   waypoint) "${SCRIPT_DIR}/sh/run_waypoint.sh" "${2:-}" "${3:-false}" ;;
   install-apt) "${SCRIPT_DIR}/sh/install_apt_dependencies.sh" ;;
   doctor-env) "${SCRIPT_DIR}/sh/doctor_env.sh" ;;
