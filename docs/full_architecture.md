@@ -43,7 +43,7 @@ The robot must:
 The target final command is:
 
 ```bash
-ros2 launch ia712_search_rescue bringup.launch.py
+ros2 launch rescue_bringup bringup.launch.py
 ```
 
 The shell wrapper is:
@@ -113,10 +113,10 @@ Owned by C.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/worlds/
-ros2_ws/src/ia712_search_rescue/models/
-ros2_ws/src/ia712_search_rescue/launch/simulation.launch.py
-ros2_ws/src/ia712_search_rescue/config/simulation_params.yaml
+ros2_ws/src/rescue_robot/worlds/
+ros2_ws/src/rescue_robot/models/
+ros2_ws/src/rescue_robot/launch/simulation.launch.py
+ros2_ws/src/rescue_robot/config/simulation_params.yaml
 ```
 
 Responsibilities:
@@ -145,9 +145,9 @@ Mostly owned by A during integration, then connected to B's exploration.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/launch/navigation.launch.py
-ros2_ws/src/ia712_search_rescue/config/slam_params.yaml
-ros2_ws/src/ia712_search_rescue/config/nav2_params.yaml
+ros2_ws/src/rescue_robot/launch/navigation.launch.py
+ros2_ws/src/rescue_robot/config/slam_params.yaml
+ros2_ws/src/rescue_robot/config/nav2_params.yaml
 ```
 
 Responsibilities:
@@ -186,9 +186,9 @@ Owned by B.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/exploration/
-ros2_ws/src/ia712_search_rescue/launch/exploration.launch.py
-ros2_ws/src/ia712_search_rescue/config/explorer_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/exploration/
+ros2_ws/src/rescue_robot/launch/exploration.launch.py
+ros2_ws/src/rescue_robot/config/explorer_params.yaml
 ```
 
 Current scaffold:
@@ -235,9 +235,9 @@ Owned by the detection responsible person. If the team keeps four roles only, th
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/detection/
-ros2_ws/src/ia712_search_rescue/launch/detection.launch.py
-ros2_ws/src/ia712_search_rescue/config/detector_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/detection/
+ros2_ws/src/rescue_robot/launch/detection.launch.py
+ros2_ws/src/rescue_robot/config/detector_params.yaml
 ```
 
 Current scaffold:
@@ -279,9 +279,9 @@ Owned by D.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/results/
-ros2_ws/src/ia712_search_rescue/launch/results.launch.py
-ros2_ws/src/ia712_search_rescue/config/results_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/results/
+ros2_ws/src/rescue_robot/launch/results.launch.py
+ros2_ws/src/rescue_robot/config/results_params.yaml
 scripts/plot_coverage.py
 scripts/annotate_map.py
 scripts/generate_run_summary.py
@@ -323,10 +323,10 @@ Owned by A.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/behavior_trees/search_and_rescue_bt.xml
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/bt_supervisor_node.py
-ros2_ws/src/ia712_search_rescue/launch/bt.launch.py
-ros2_ws/src/ia712_search_rescue/config/bt_params.yaml
+ros2_ws/src/rescue_robot/behavior_trees/search_and_rescue_bt.xml
+ros2_ws/src/rescue_robot/rescue_robot/bt/bt_supervisor_node.py
+ros2_ws/src/rescue_robot/launch/bt.launch.py
+ros2_ws/src/rescue_robot/config/bt_params.yaml
 ```
 
 Current scaffold:
@@ -363,8 +363,8 @@ Owned by A.
 Relevant paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/mocks/
-ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py
+ros2_ws/src/rescue_robot/rescue_robot/mocks/
+ros2_ws/src/rescue_robot/launch/mock_system.launch.py
 ```
 
 Mocks publish:

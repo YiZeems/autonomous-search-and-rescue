@@ -1,9 +1,19 @@
 # ROS 2 Package Structure Explained
 
+> **Current layout (3 packages).** The project is split into three ROS 2
+> packages under `ros2_ws/src/`:
+>
+> - **`rescue_robot`** (`ament_python`) — all nodes, configs, launch files, RViz config.
+> - **`rescue_bringup`** (`ament_cmake`) — integration entry points (`bringup.launch.py`, `demo.launch.py`).
+> - **`rescue_world`** (`ament_cmake`) — Gazebo worlds/models.
+>
+> The single launch file that lives in `rescue_bringup` (not `rescue_robot`) is
+> `bringup.launch.py`: run it with `ros2 launch rescue_bringup bringup.launch.py`.
+
 This file explains the repository tree and, especially, why the path below contains the same name twice:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 This is normal for a ROS 2 Python package.
@@ -15,7 +25,7 @@ This is normal for a ROS 2 Python package.
 ### ROS 2 package folder
 
 ```text
-ros2_ws/src/ia712_search_rescue/
+ros2_ws/src/rescue_robot/
 ```
 
 This is the **ROS 2 package root**. It is the folder that `colcon` builds.
@@ -23,7 +33,7 @@ This is the **ROS 2 package root**. It is the folder that `colcon` builds.
 It contains files used by ROS 2, `ament_python`, launch, Gazebo and configuration:
 
 ```text
-ros2_ws/src/ia712_search_rescue/
+ros2_ws/src/rescue_robot/
 ├── package.xml
 ├── setup.py
 ├── setup.cfg
@@ -36,7 +46,7 @@ ros2_ws/src/ia712_search_rescue/
 ├── maps/
 ├── rviz/
 ├── test_data/
-└── ia712_search_rescue/
+└── rescue_robot/
 ```
 
 This level answers:
@@ -48,13 +58,13 @@ How is the ROS 2 package built, installed and launched?
 ### Python module folder
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 This is the **Python importable module**. It contains the Python code for the ROS 2 nodes.
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ├── __init__.py
 ├── bt/
 ├── detection/
@@ -83,26 +93,26 @@ package_name/
 In this project:
 
 ```text
-ia712_search_rescue/                 <- ROS 2 package root
-└── ia712_search_rescue/             <- Python module
+rescue_robot/                 <- ROS 2 package root
+└── rescue_robot/             <- Python module
 ```
 
 The `setup.py` file defines entry points such as:
 
 ```python
-'frontier_explorer_node = ia712_search_rescue.exploration.frontier_explorer_node:main'
+'frontier_explorer_node = rescue_robot.exploration.frontier_explorer_node:main'
 ```
 
 This means Python must be able to import:
 
 ```python
-ia712_search_rescue.exploration.frontier_explorer_node
+rescue_robot.exploration.frontier_explorer_node
 ```
 
 So the inner folder below must exist:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 Do **not** rename it, move it or delete it unless `setup.py`, imports, tests and launch files are updated accordingly.
@@ -114,7 +124,7 @@ Do **not** rename it, move it or delete it unless `setup.py`, imports, tests and
 ### `launch/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/launch/
+ros2_ws/src/rescue_robot/launch/
 ```
 
 Contains ROS 2 launch files.
@@ -133,7 +143,7 @@ bt.launch.py            Behavior Tree supervisor
 The final target is still one command:
 
 ```bash
-ros2 launch ia712_search_rescue bringup.launch.py
+ros2 launch rescue_bringup bringup.launch.py
 ```
 
 The other launch files exist so that each module can be tested independently.
@@ -141,7 +151,7 @@ The other launch files exist so that each module can be tested independently.
 ### `config/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/config/
+ros2_ws/src/rescue_robot/config/
 ```
 
 Contains YAML parameter files.
@@ -161,7 +171,7 @@ Each module should use its own config file to avoid Git conflicts.
 ### `behavior_trees/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/behavior_trees/
+ros2_ws/src/rescue_robot/behavior_trees/
 ```
 
 Contains XML Behavior Tree definitions.
@@ -171,8 +181,8 @@ The project requires Behavior Trees rather than finite-state machines. This fold
 ### `worlds/` and `models/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/worlds/
-ros2_ws/src/ia712_search_rescue/models/
+ros2_ws/src/rescue_robot/worlds/
+ros2_ws/src/rescue_robot/models/
 ```
 
 Contain Gazebo world files and custom Gazebo models such as obstacles or victim markers.
@@ -180,7 +190,7 @@ Contain Gazebo world files and custom Gazebo models such as obstacles or victim 
 ### `maps/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/maps/
+ros2_ws/src/rescue_robot/maps/
 ```
 
 Contains maps saved from SLAM or reference/test maps.
@@ -188,7 +198,7 @@ Contains maps saved from SLAM or reference/test maps.
 ### `rviz/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/rviz/
+ros2_ws/src/rescue_robot/rviz/
 ```
 
 Contains RViz configuration files.
@@ -196,7 +206,7 @@ Contains RViz configuration files.
 ### `test_data/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/test_data/
+ros2_ws/src/rescue_robot/test_data/
 ```
 
 Contains small fake data used for development and tests.
@@ -208,7 +218,7 @@ Contains small fake data used for development and tests.
 ### `mocks/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/mocks/
+ros2_ws/src/rescue_robot/rescue_robot/mocks/
 ```
 
 Contains fake publishers used before the real Gazebo/SLAM/Nav2 stack is ready.
@@ -224,7 +234,7 @@ mock_coverage_publisher.py  publishes /coverage
 ### `exploration/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/exploration/
+ros2_ws/src/rescue_robot/rescue_robot/exploration/
 ```
 
 Contains the autonomous exploration logic.
@@ -238,7 +248,7 @@ Final goal:
 ### `detection/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/detection/
+ros2_ws/src/rescue_robot/rescue_robot/detection/
 ```
 
 Contains camera-based victim detection and future `tf2` localization.
@@ -252,7 +262,7 @@ camera image -> marker detection -> camera frame pose -> tf2 -> map frame pose -
 ### `results/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/results/
+ros2_ws/src/rescue_robot/rescue_robot/results/
 ```
 
 Contains metrics, exports and visualization nodes.
@@ -268,7 +278,7 @@ rviz_marker_node.py
 ### `bt/`
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/
+ros2_ws/src/rescue_robot/rescue_robot/bt/
 ```
 
 Contains the project-level Behavior Tree supervisor node.
@@ -280,7 +290,7 @@ Contains the project-level Behavior Tree supervisor node.
 There are two different `results` locations:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/results/
+ros2_ws/src/rescue_robot/rescue_robot/results/
 ```
 
 This is Python code.
@@ -331,7 +341,7 @@ Do not simplify the tree by removing the inner package folder.
 This path is intentional and required:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 If an AI coding agent suggests deleting or renaming it, reject that suggestion.

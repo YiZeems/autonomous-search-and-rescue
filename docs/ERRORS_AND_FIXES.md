@@ -391,6 +391,118 @@ sleep 2
 
 ---
 
+## 21. Transport Fast-DDS (SHM) corrompu — `controller_manager` injoignable
+
+**Symptôme**
+Le service `/turtlebot4/controller_manager/list_controllers` apparaît dans
+`ros2 service list` mais ne répond jamais. Les `spawner` restent bloqués sur
+`waiting for service ... to become available`. Logs parsemés de :
+```
+[RTPS_TRANSPORT_SHM Error] Failed init_port fastrtps_portXXXX: open_and_lock_file failed
+```
+
+**Cause**
+Des fichiers de mémoire partagée Fast-DDS périmés (`/dev/shm/fastrtps_port*`)
+laissés par des sessions précédentes (kill -9, crashs) bloquent le transport
+SHM. Le `controller_manager` tourne dans la boucle physique d'Ignition et ne
+peut plus ouvrir ses ports SHM → ses services sont annoncés sur le graphe DDS
+mais aucune requête n'aboutit.
+
+**Solution**
+Désactiver le transport SHM (forcer UDP) **et** nettoyer le SHM avant tout
+démarrage ROS 2 :
+```bash
+# config/fastdds_udp_only.xml — profil UDPv4 only
+export FASTRTPS_DEFAULT_PROFILES_FILE="config/fastdds_udp_only.xml"
+find /dev/shm -name "fastrtps_port*" -delete   # avant de lancer quoi que ce soit
+```
+`run_demo_tb4.sh` applique les deux automatiquement au démarrage.
+
+---
+
+## 22. Nav2 BT — `Node not recognized: GlobalUpdatedGoal`
+
+**Symptôme**
+```
+[bt_navigator]: Exception when loading BT: ... Node not recognized: GlobalUpdatedGoal
+[bt_navigator]: Error loading XML file: navigate_to_pose_w_replanning_and_recovery.xml
+[lifecycle_manager]: Failed to bring up all requested nodes. Aborting bringup.
+```
+
+**Cause**
+Le BT XML Nav2 par défaut (`navigate_to_pose_w_replanning_and_recovery.xml`)
+référence des nœuds (`GlobalUpdatedGoal`, `spin`, `backup`, `RemovePassedGoals`)
+dont les plugins ne sont pas chargés une fois la recovery désactivée (#16).
+Charger le BT complet alors que les actions `spin`/`backup` sont absentes
+échoue à l'activation de `bt_navigator`.
+
+**Solution**
+Pointer `bt_navigator` vers un BT minimal (replanification périodique, sans
+recovery) qui n'utilise que `ComputePathToPose` + `FollowPath` :
+```yaml
+bt_navigator:
+  ros__parameters:
+    default_nav_to_pose_bt_xml: ".../behavior_trees/navigate_w_replanning_time.xml"
+    default_nav_through_poses_bt_xml: ".../behavior_trees/navigate_w_replanning_time.xml"
+```
+
+---
+
+## 23. Nav2 lifecycle — `smoother_server` / `velocity_smoother` non configurés
+
+**Symptôme**
+```
+[lifecycle_manager]: Failed to change state for node: smoother_server
+[lifecycle_manager]: Failed to bring up all requested nodes. Aborting bringup.
+```
+
+**Cause**
+`nav2_bringup/navigation_launch.py` (Humble) lance **en dur** `smoother_server`
+et `velocity_smoother` et les inclut dans la liste des nœuds gérés par le
+lifecycle. Si `nav2_params_tb4.yaml` ne définit pas ces deux sections, leur
+`Configuring` échoue et tout le bringup avorte.
+
+**Solution**
+Ajouter les sections `smoother_server` (plugin `SimpleSmoother`) et
+`velocity_smoother` (limites de vitesse TB4, `odom_topic: /turtlebot4/odom`),
+et lister les deux dans `lifecycle_manager_navigation.node_names` :
+```yaml
+lifecycle_manager_navigation:
+  ros__parameters:
+    node_names:
+      - controller_server
+      - smoother_server
+      - planner_server
+      - behavior_server
+      - bt_navigator
+      - velocity_smoother
+```
+
+---
+
+## 24. RViz2 — `indexed_8bit_image` GLSL link error (carte non texturée)
+
+**Symptôme**
+```
+[rviz2] Vertex Program:rviz/glsl120/indexed_8bit_image.vert
+        Fragment Program:rviz/glsl120/indexed_8bit_image.frag GLSL link result :
+        active samplers with a different type refer to the same texture image unit
+```
+Le display **Map** ne se texture pas (LaserScan, caméra, RobotModel s'affichent
+normalement).
+
+**Cause**
+Le shader `indexed_8bit_image` de RViz2 est incompatible avec le renderer
+logiciel Mesa/llvmpipe utilisé sur le GPU virtuel Parallels (`1ab8:0010`) en
+`LIBGL_ALWAYS_SOFTWARE=1`. Limitation du renderer, pas du code.
+
+**Solution**
+Cosmétique uniquement — n'empêche ni la navigation ni le SLAM. Contournements :
+- utiliser `Costmap` (RGBA) au lieu de `Map` pour visualiser l'occupation, ou
+- exécuter RViz2 sur l'hôte macOS / une machine avec GPU réel.
+
+---
+
 ## Résumé des fichiers modifiés
 
 | Fichier | Problème résolu |
@@ -398,11 +510,14 @@ sleep 2
 | `setup.cfg` | #4 — nom du paquet |
 | `config/slam_params.yaml` | #19 — max_laser_range |
 | `config/slam_params_tb4.yaml` | #5 + #7 — frames namespaced, min_travel=0 |
-| `config/nav2_params_tb4.yaml` | #11 + #12 + #13 + #16 — frames TB4, BT plugins, recovery |
+| `config/nav2_params_tb4.yaml` | #11 + #12 + #13 + #16 + #22 + #23 — frames TB4, BT minimal, recovery, smoother lifecycle |
 | `config/waypoints_tb4_maze.yaml` | #11 — waypoints dans les bornes de la map |
-| `utils/tf_relay_node.py` | #5 + #6 — relay QoS TRANSIENT_LOCAL |
-| `utils/cmd_vel_relay_node.py` | cmd_vel Nav2 → diffdrive namespace |
+| `config/fastdds_udp_only.xml` | #21 — transport UDP-only (désactive SHM) |
+| `utils/tf_relay_node.py` | #5 + #6 — relay QoS TRANSIENT_LOCAL (base `TopicRelay`) |
+| `utils/cmd_vel_relay_node.py` | cmd_vel Nav2 → diffdrive namespace (base `TopicRelay`) |
+| `utils/node_runner.py` | refactor — cycle de vie rclpy partagé (init/spin/shutdown) |
+| `utils/topic_relay.py` | refactor — base commune des deux relais |
 | `mocks/mock_map_publisher.py` | #17 — QoS TRANSIENT_LOCAL |
 | `navigation/waypoint_follower_node.py` | #14 + #15 — wall timer + MultiThreadedExecutor |
 | `launch/navigation_tb4.launch.py` | #8 — env var override pour NFS |
-| `scripts/sh/run_demo_tb4.sh` | #2 + #3 + #8 + #9 + #16 — séquence robuste |
+| `scripts/sh/run_demo_tb4.sh` | #2 + #3 + #8 + #9 + #16 + #21 — séquence robuste + nettoyage SHM |

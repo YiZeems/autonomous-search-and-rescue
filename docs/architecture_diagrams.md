@@ -23,7 +23,7 @@ flowchart TD
     ROOT --> ROSWS["ros2_ws/"]
 
     ROSWS --> SRC["src/"]
-    SRC --> PKG["ia712_search_rescue/"]
+    SRC --> PKG["rescue_robot/"]
 
     PKG --> PKGXML["package.xml"]
     PKG --> SETUPPY["setup.py"]
@@ -35,7 +35,7 @@ flowchart TD
     PKG --> MAPS["maps/"]
     PKG --> RVIZ["rviz/"]
     PKG --> BTXML["behavior_trees/"]
-    PKG --> PYMOD["ia712_search_rescue/"]
+    PKG --> PYMOD["rescue_robot/"]
 
     PYMOD --> MOCKS["mocks/"]
     PYMOD --> EXPLORATION["exploration/"]
@@ -51,21 +51,21 @@ flowchart TD
 Le chemin suivant est normal :
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
-Le premier `ia712_search_rescue` est le **package ROS 2**.  
-Le second `ia712_search_rescue` est le **module Python importable**.
+Le premier `rescue_robot` est le **package ROS 2**.  
+Le second `rescue_robot` est le **module Python importable**.
 
 ```mermaid
 flowchart TD
-    A["ros2_ws/src/ia712_search_rescue/"] --> B["Package ROS 2"]
+    A["ros2_ws/src/rescue_robot/"] --> B["Package ROS 2"]
     B --> C["package.xml"]
     B --> D["setup.py"]
     B --> E["launch/"]
     B --> F["config/"]
     B --> G["worlds/"]
-    B --> H["ia712_search_rescue/"]
+    B --> H["rescue_robot/"]
 
     H --> I["Module Python"]
     I --> J["mocks/"]
@@ -82,7 +82,7 @@ flowchart TD
     O --> N
 ```
 
-Ne pas renommer ni supprimer le deuxième dossier `ia712_search_rescue/`, sinon les entry points définis dans `setup.py` ne fonctionneront plus.
+Ne pas renommer ni supprimer le deuxième dossier `rescue_robot/`, sinon les entry points définis dans `setup.py` ne fonctionneront plus.
 
 ---
 
@@ -419,7 +419,7 @@ flowchart LR
     TB3HELPER --> SIM["run_simulation.sh"]
     GFX --> HSAFE["run_simulation_house_safe.sh"]
 
-    SIM --> ROSLAUNCH["ros2 launch ia712_search_rescue simulation.launch.py"]
+    SIM --> ROSLAUNCH["ros2 launch rescue_robot simulation.launch.py"]
     HSAFE --> ROSLAUNCH
 ```
 

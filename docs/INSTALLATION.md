@@ -36,7 +36,7 @@ ia712-search-and-rescue/ros2_ws/
 The ROS 2 package is:
 
 ```text
-ia712-search-and-rescue/ros2_ws/src/ia712_search_rescue/
+ia712-search-and-rescue/ros2_ws/src/rescue_robot/
 ```
 
 ## 1. Install ROS 2 Humble

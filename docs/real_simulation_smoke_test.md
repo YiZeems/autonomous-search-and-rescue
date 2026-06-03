@@ -38,7 +38,7 @@ From the repository root:
 This runs:
 
 ```bash
-ros2 launch ia712_search_rescue simulation.launch.py
+ros2 launch rescue_robot simulation.launch.py
 ```
 
 The launch file includes:
@@ -157,7 +157,7 @@ The project launch file sets `TURTLEBOT3_MODEL` from the `model` launch argument
 
 ```bash
 ./scripts/run.sh simulation
-ros2 launch ia712_search_rescue simulation.launch.py model:=waffle_pi world:=house
+ros2 launch rescue_robot simulation.launch.py model:=waffle_pi world:=house
 ```
 
 For normal team use, prefer the script because it also handles TurtleBot3 overlays on ARM64.

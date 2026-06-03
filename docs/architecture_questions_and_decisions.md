@@ -24,7 +24,7 @@ This document is the starting point for the professor validation discussion. It 
 
 ## 3. Why one package instead of many packages?
 
-**Decision:** Use one package named `ia712_search_rescue`, structured internally by modules.
+**Decision:** Use one package named `rescue_robot`, structured internally by modules.
 
 **Justification:** Multiple packages are cleaner at large scale but add overhead. One package with separate submodules, launch files, configs, and docs is simpler for a four-person student project.
 

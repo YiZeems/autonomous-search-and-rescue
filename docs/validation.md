@@ -16,7 +16,7 @@ Use this checklist before presenting the repository to the professor.
 
 ### ROS 2 structure
 
-- [ ] Package exists under `ros2_ws/src/ia712_search_rescue`.
+- [ ] Package exists under `ros2_ws/src/rescue_robot`.
 - [ ] `package.xml` exists.
 - [ ] `setup.py` exists.
 - [ ] Launch files exist.
@@ -95,7 +95,7 @@ cd ros2_ws
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
-ros2 launch ia712_search_rescue mock_system.launch.py
+ros2 launch rescue_robot mock_system.launch.py
 ```
 
 This cannot be fully validated outside Ubuntu 22.04 + ROS 2 Humble.

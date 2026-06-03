@@ -28,7 +28,7 @@ The professor asked for simple executable scripts. We provide one orchestrator:
 Shell scripts are only wrappers. The canonical ROS 2 entrypoints remain the launch files in:
 
 ```text
-ros2_ws/src/ia712_search_rescue/launch/
+ros2_ws/src/rescue_robot/launch/
 ```
 
 This prevents the scripts from hiding the architecture. Each script simply sources ROS 2 / the workspace and calls the matching launch file.

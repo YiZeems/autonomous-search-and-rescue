@@ -32,19 +32,19 @@ CONTRIBUTING.md
 docs/interfaces.md
 docs/architecture.md  →  now merged into docs/full_architecture.md
 docs/github_protection.md  →  now in docs/INSTALLATION.md
-ros2_ws/src/ia712_search_rescue/package.xml
-ros2_ws/src/ia712_search_rescue/setup.py
-ros2_ws/src/ia712_search_rescue/setup.cfg
-ros2_ws/src/ia712_search_rescue/launch/bringup.launch.py
-ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py
-ros2_ws/src/ia712_search_rescue/launch/navigation.launch.py
-ros2_ws/src/ia712_search_rescue/launch/bt.launch.py
-ros2_ws/src/ia712_search_rescue/config/slam_params.yaml
-ros2_ws/src/ia712_search_rescue/config/nav2_params.yaml
-ros2_ws/src/ia712_search_rescue/config/bt_params.yaml
-ros2_ws/src/ia712_search_rescue/behavior_trees/
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/mocks/
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/
+ros2_ws/src/rescue_robot/package.xml
+ros2_ws/src/rescue_robot/setup.py
+ros2_ws/src/rescue_robot/setup.cfg
+ros2_ws/src/rescue_bringup/launch/bringup.launch.py
+ros2_ws/src/rescue_robot/launch/mock_system.launch.py
+ros2_ws/src/rescue_robot/launch/navigation.launch.py
+ros2_ws/src/rescue_robot/launch/bt.launch.py
+ros2_ws/src/rescue_robot/config/slam_params.yaml
+ros2_ws/src/rescue_robot/config/nav2_params.yaml
+ros2_ws/src/rescue_robot/config/bt_params.yaml
+ros2_ws/src/rescue_robot/behavior_trees/
+ros2_ws/src/rescue_robot/rescue_robot/mocks/
+ros2_ws/src/rescue_robot/rescue_robot/bt/
 scripts/run.sh
 scripts/sh/
 ```
@@ -100,9 +100,9 @@ B is responsible for autonomous exploration. The module reads the map, finds fro
 ### Files owned by B
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/exploration/
-ros2_ws/src/ia712_search_rescue/launch/exploration.launch.py
-ros2_ws/src/ia712_search_rescue/config/explorer_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/exploration/
+ros2_ws/src/rescue_robot/launch/exploration.launch.py
+ros2_ws/src/rescue_robot/config/explorer_params.yaml
 ```
 
 ### What B should not modify
@@ -150,10 +150,10 @@ C is responsible for the simulation environment: world, robot spawn, sensors, an
 ### Files owned by C
 
 ```text
-ros2_ws/src/ia712_search_rescue/worlds/
-ros2_ws/src/ia712_search_rescue/models/
-ros2_ws/src/ia712_search_rescue/launch/simulation.launch.py
-ros2_ws/src/ia712_search_rescue/config/simulation_params.yaml
+ros2_ws/src/rescue_robot/worlds/
+ros2_ws/src/rescue_robot/models/
+ros2_ws/src/rescue_robot/launch/simulation.launch.py
+ros2_ws/src/rescue_robot/config/simulation_params.yaml
 ```
 
 ### What C should not modify
@@ -200,9 +200,9 @@ D turns the robot run into measurable and presentable results. The module must w
 ### Files owned by D
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/results/
-ros2_ws/src/ia712_search_rescue/launch/results.launch.py
-ros2_ws/src/ia712_search_rescue/config/results_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/results/
+ros2_ws/src/rescue_robot/launch/results.launch.py
+ros2_ws/src/rescue_robot/config/results_params.yaml
 scripts/plot_coverage.py
 scripts/annotate_map.py
 scripts/generate_run_summary.py

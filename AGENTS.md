@@ -28,19 +28,19 @@ All paths below are relative to the repository root.
 Package root:
 
 ```text
-ros2_ws/src/ia712_search_rescue/
+ros2_ws/src/rescue_robot/
 ```
 
 Python package root:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 Do not rename or remove the inner Python package folder. The repeated path below is intentional for an `ament_python` ROS 2 package:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/
+ros2_ws/src/rescue_robot/rescue_robot/
 ```
 
 For the full explanation, read:
@@ -60,13 +60,13 @@ AGENTS.md
 .github/
 pyproject.toml
 .python-version
-ros2_ws/src/ia712_search_rescue/package.xml
-ros2_ws/src/ia712_search_rescue/setup.py
-ros2_ws/src/ia712_search_rescue/setup.cfg
-ros2_ws/src/ia712_search_rescue/launch/bringup.launch.py
-ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py
-ros2_ws/src/ia712_search_rescue/config/nav2_params.yaml
-ros2_ws/src/ia712_search_rescue/config/slam_params.yaml
+ros2_ws/src/rescue_robot/package.xml
+ros2_ws/src/rescue_robot/setup.py
+ros2_ws/src/rescue_robot/setup.cfg
+ros2_ws/src/rescue_bringup/launch/bringup.launch.py
+ros2_ws/src/rescue_robot/launch/mock_system.launch.py
+ros2_ws/src/rescue_robot/config/nav2_params.yaml
+ros2_ws/src/rescue_robot/config/slam_params.yaml
 docs/interfaces.md
 scripts/run.sh
 scripts/sh/_common.sh
@@ -89,15 +89,15 @@ docs/interfaces.md
 docs/INSTALLATION.md
 docs/INSTALLATION.md
 docs/team_roles.md
-ros2_ws/src/ia712_search_rescue/package.xml
-ros2_ws/src/ia712_search_rescue/setup.py
-ros2_ws/src/ia712_search_rescue/launch/bringup.launch.py
-ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py
-ros2_ws/src/ia712_search_rescue/launch/bt.launch.py
-ros2_ws/src/ia712_search_rescue/config/bt_params.yaml
-ros2_ws/src/ia712_search_rescue/behavior_trees/
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/mocks/
+ros2_ws/src/rescue_robot/package.xml
+ros2_ws/src/rescue_robot/setup.py
+ros2_ws/src/rescue_bringup/launch/bringup.launch.py
+ros2_ws/src/rescue_robot/launch/mock_system.launch.py
+ros2_ws/src/rescue_robot/launch/bt.launch.py
+ros2_ws/src/rescue_robot/config/bt_params.yaml
+ros2_ws/src/rescue_robot/behavior_trees/
+ros2_ws/src/rescue_robot/rescue_robot/bt/
+ros2_ws/src/rescue_robot/rescue_robot/mocks/
 scripts/run.sh
 scripts/sh/
 ```
@@ -107,9 +107,9 @@ scripts/sh/
 Allowed paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/exploration/
-ros2_ws/src/ia712_search_rescue/launch/exploration.launch.py
-ros2_ws/src/ia712_search_rescue/config/explorer_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/exploration/
+ros2_ws/src/rescue_robot/launch/exploration.launch.py
+ros2_ws/src/rescue_robot/config/explorer_params.yaml
 docs/team_roles.md
 docs/team_roles.md
 ```
@@ -119,10 +119,10 @@ docs/team_roles.md
 Allowed paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/worlds/
-ros2_ws/src/ia712_search_rescue/models/
-ros2_ws/src/ia712_search_rescue/launch/simulation.launch.py
-ros2_ws/src/ia712_search_rescue/config/simulation_params.yaml
+ros2_ws/src/rescue_robot/worlds/
+ros2_ws/src/rescue_robot/models/
+ros2_ws/src/rescue_robot/launch/simulation.launch.py
+ros2_ws/src/rescue_robot/config/simulation_params.yaml
 docs/team_roles.md
 docs/team_roles.md
 ```
@@ -132,9 +132,9 @@ docs/team_roles.md
 Allowed paths:
 
 ```text
-ros2_ws/src/ia712_search_rescue/ia712_search_rescue/results/
-ros2_ws/src/ia712_search_rescue/launch/results.launch.py
-ros2_ws/src/ia712_search_rescue/config/results_params.yaml
+ros2_ws/src/rescue_robot/rescue_robot/results/
+ros2_ws/src/rescue_robot/launch/results.launch.py
+ros2_ws/src/rescue_robot/config/results_params.yaml
 scripts/annotate_map.py
 scripts/generate_run_summary.py
 scripts/plot_coverage.py
@@ -242,7 +242,7 @@ source /opt/ros/humble/setup.bash
 
 Stop and ask before doing any of the following:
 
-- renaming package `ia712_search_rescue`;
+- renaming package `rescue_robot`;
 - changing branch/GitHub workflow rules;
 - changing `setup.py` entry points;
 - changing shared topic names;

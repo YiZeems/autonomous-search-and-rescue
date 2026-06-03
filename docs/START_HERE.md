@@ -66,7 +66,7 @@ If ROS 2 is not installed, use syntax checks only:
 python3 - <<'PY'
 from pathlib import Path
 import ast
-for path in list(Path("ros2_ws/src/ia712_search_rescue/ia712_search_rescue").rglob("*.py")) + list(Path("scripts").glob("*.py")):
+for path in list(Path("ros2_ws/src/rescue_robot/rescue_robot").rglob("*.py")) + list(Path("scripts").glob("*.py")):
     ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
 print("Python syntax OK")
 PY

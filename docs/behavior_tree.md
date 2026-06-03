@@ -22,7 +22,7 @@ Sequence
 
 ## Files
 
-- `ros2_ws/src/ia712_search_rescue/behavior_trees/search_and_rescue_bt.xml`
-- `ros2_ws/src/ia712_search_rescue/ia712_search_rescue/bt/bt_supervisor_node.py`
-- `ros2_ws/src/ia712_search_rescue/launch/bt.launch.py`
-- `ros2_ws/src/ia712_search_rescue/config/bt_params.yaml`
+- `ros2_ws/src/rescue_robot/behavior_trees/search_and_rescue_bt.xml`
+- `ros2_ws/src/rescue_robot/rescue_robot/bt/bt_supervisor_node.py`
+- `ros2_ws/src/rescue_robot/launch/bt.launch.py`
+- `ros2_ws/src/rescue_robot/config/bt_params.yaml`

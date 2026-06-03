@@ -67,7 +67,7 @@ World aliases: `house`, `base`/`world`, `empty`. You can also pass an upstream T
 Direct `ros2 launch` equivalent:
 
 ```bash
-ros2 launch ia712_search_rescue simulation.launch.py model:=waffle_pi world:=house
+ros2 launch rescue_robot simulation.launch.py model:=waffle_pi world:=house
 ```
 
 ### What the house-world smoke test validates

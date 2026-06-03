@@ -23,10 +23,10 @@ git push
 - `README.md`
 - `CONTRIBUTING.md`
 - `.github/`
-- `ros2_ws/src/ia712_search_rescue/package.xml`
-- `ros2_ws/src/ia712_search_rescue/setup.py`
-- `ros2_ws/src/ia712_search_rescue/launch/bringup.launch.py`
-- `ros2_ws/src/ia712_search_rescue/launch/mock_system.launch.py`
+- `ros2_ws/src/rescue_robot/package.xml`
+- `ros2_ws/src/rescue_robot/setup.py`
+- `ros2_ws/src/rescue_bringup/launch/bringup.launch.py`
+- `ros2_ws/src/rescue_robot/launch/mock_system.launch.py`
 - `docs/interfaces.md`
 
 ## Before asking for integration
