@@ -45,6 +45,7 @@ setup(
             'waypoint_follower_node = rescue_robot.navigation.waypoint_follower_node:main',
             'tf_relay_node = rescue_robot.utils.tf_relay_node:main',
             'cmd_vel_relay_node = rescue_robot.utils.cmd_vel_relay_node:main',
+            'scan_throttle_node = rescue_robot.utils.scan_throttle_node:main',
         ],
     },
 )

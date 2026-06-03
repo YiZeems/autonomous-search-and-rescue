@@ -175,3 +175,22 @@ If Gazebo freezes on the house world with a message such as `gazebo is not respo
 ```
 
 This is especially useful on macOS + Parallels + Ubuntu ARM64 and can also help on WSL2/WSLg. See `docs/simulation_setup.md`.
+
+## Platform profiles (Mac/Parallels vs Windows/WSL2)
+
+The TurtleBot4 demo auto-detects the host and loads the matching profile so the
+same command works on both setups:
+
+| Host | Profile | Render engine | GL | Notes |
+|---|---|---|---|---|
+| macOS + Parallels, Ubuntu **ARM64** | `config/platform_mac.sh` | **Ogre v1** | software (llvmpipe) | Ogre2 `gpu_lidar` returns `range_min` under software GL → Ogre v1 required for a working lidar; UDP-only DDS |
+| Windows 11 + **WSL2**, Ubuntu x86_64 | `config/platform_win.sh` | Ogre2 (default) | hardware (WSLg D3D12) | GPU-accelerated, lidar works natively |
+
+```bash
+./scripts/run.sh demo-tb4              # auto-detects mac vs win
+IA712_PLATFORM=win ./scripts/run.sh demo-tb4   # force a profile
+IA712_TB4_GUI=0   ./scripts/run.sh demo-tb4    # headless (no Gazebo window)
+```
+
+Detection logic is in `scripts/sh/_platform.sh`. Why this matters and the full
+diagnosis are in `docs/ERRORS_AND_FIXES.md` (#1 GUI, #10 lidar render engine, #25 scan throttle).

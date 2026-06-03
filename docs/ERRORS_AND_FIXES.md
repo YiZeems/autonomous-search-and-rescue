@@ -184,45 +184,44 @@ export PYTHONPATH="${WS}/build/rescue_robot:${PYTHONPATH}"
 
 ---
 
-## 10. RPLIDAR auto-collision (self-hit) — pas de lidar/obstacles, carte figée 7×7
+## 10. Lidar TB4 muet (range_min partout) — **vrai cause : Ogre2 sous software GL** ✅ RÉSOLU
 
-> **Correctif d'une note antérieure erronée.** Il avait été écrit que seul le
-> modèle `lite` souffrait du self-hit et que `standard` le corrigeait. **C'est
-> faux** : mesures à l'appui (cf. ci-dessous), les **deux** modèles self-hittent.
+> **Deux notes antérieures étaient fausses.** (1) « seul `lite` self-hit » →
+> faux. (2) « auto-collision intrinsèque au modèle, irréparable sans toucher
+> l'amont » → **faux aussi**. La vraie cause est le **moteur de rendu**, et
+> c'est **corrigé**.
 
 **Symptôme**
-Dans RViz, la caméra fonctionne mais **le LaserScan et les obstacles (costmaps)
-n'apparaissent jamais** ; la carte SLAM reste à 7×7 cellules (0,35 m). Le robot
-« ne voit » aucun mur.
+Dans RViz, la caméra marche mais **LaserScan + obstacles (costmaps) absents** ;
+la carte SLAM reste figée à 7×7 cellules. Le RPLIDAR Ignition renvoie
+`range_min` (**0,164 m**) sur les 642 rayons, quels que soient le monde, le
+modèle (`lite`/`standard`), la position de spawn ou les meshes.
 
-**Cause (diagnostiquée au niveau capteur Ignition)**
-Le RPLIDAR simulé retourne `range_min` (**0,164 m**) sur **641 des 642 rayons**,
-360°. Les rayons frappent immédiatement la géométrie de collision du robot
-lui-même. Vérifié exhaustivement — le problème est **indépendant** de :
-- le **monde** (`maze` ET `depot` ouvert → identique),
-- le **modèle** (`lite` ET `standard` → identique),
-- la **position de spawn** (origine, en l'air, etc.),
-- les **meshes** (`IGN_GAZEBO_RESOURCE_PATH` correct, 0 erreur de chargement → identique).
+**Cause réelle**
+`rplidar` est un capteur **`gpu_lidar`** : il rend la scène via le moteur de
+rendu d'Ignition. Le défaut **Ogre2** (par défaut) effectue sa passe de
+profondeur via des shaders GLSL 3.3/compute qui **échouent silencieusement sous
+le rendu logiciel Mesa/llvmpipe** (GPU virtuel Parallels ARM64, sans GPU réel) →
+profondeur dégénérée → `range_min` partout. Ce n'est **pas** le modèle.
 
-C'est donc une auto-collision **intrinsèque** au modèle TB4 Ignition (URDF
-`gazebo:=ignition`) sur ce stack Fortress/ARM64 : le `<ray>` du rplidar_link
-voit les collisions du corps sous la portée minimale.
-
-**Vérification**
+**Preuve**
+Même robot/monde, on change uniquement le moteur de rendu du serveur :
 ```bash
-ign topic -e -t /world/<world>/model/turtlebot4/link/rplidar_link/sensor/rplidar/scan -n 1
-# → si toutes les valeurs valent 0.164 (range_min) : self-hit
+ign gazebo -s -r --render-engine ogre2 depot.sdf   # → 641 rayons à 0.164 (KO)
+ign gazebo -s -r --render-engine ogre  depot.sdf   # → 1.68, 3.04, 7.37 m … (OK !)
 ```
 
-**Solutions**
-- **Démo lidar+obstacles+SLAM qui marche** : utiliser le chemin **TurtleBot3 +
-  Gazebo Classic** du projet (`./scripts/run.sh demo`, LDS-01 sans self-hit) —
-  nécessite `ros-humble-turtlebot3-gazebo`.
-- **Garder TB4** : corriger le modèle amont (surélever la pose du `<ray>`
-  rplidar, ou poser un `<collide_bitmask>` distinct sur les collisions du corps
-  pour que les rayons les ignorent). Hors périmètre du code projet (fichiers
-  `/opt/ros/.../turtlebot4_description`).
-- La **caméra** TB4 fonctionne quoi qu'il arrive (indépendante des collisions).
+**Solution (appliquée)**
+- **Mac/Parallels (ARM64, software GL)** : forcer le moteur **Ogre v1**
+  (`--render-engine ogre`) pour le serveur (capteurs) **et** le client GUI.
+  → lidar réel, SLAM construit une vraie carte (80×60+ vérifié), GUI sans crash.
+- **Win/WSL2 (x86, GPU WSLg)** : Ogre2 par défaut fonctionne (GPU matériel).
+- Le moteur est choisi automatiquement par le profil plateforme
+  (`config/platform_mac.sh` / `platform_win.sh`, cf. `_platform.sh`).
+- La **caméra** marche dans les deux cas.
+
+Voir aussi #25 (le lidar Ignition sort à ~300 Hz → throttle 10 Hz nécessaire
+pour que le MessageFilter de SLAM n'overflow pas).
 
 ---
 
@@ -557,20 +556,17 @@ trop petit).
    `MessageFilter` de slam_toolbox (file courte) déborde plus vite que les
    lookups TF n'aboutissent → tous les scans sont jetés.
 
-**Solutions**
-1. Lancer les `static_transform_publisher` **avec** `--ros-args -p use_sim_time:=true`
-   (corrigé dans `run_demo_tb4.sh`). À lui seul, ceci rétablit `map→odom`.
-2. Réduire le débit des scans vus par SLAM :
-   - **option A (recommandée)** : abaisser `update_rate` du LiDAR dans le SDF, ou
-   - **option B** : intercaler un throttle 10 Hz (`/scan` → `/scan_throttled`,
-     republié au plus toutes les 0,1 s) et pointer SLAM dessus via
-     `scan_topic: /scan_throttled` **dans `slam_params_tb4.yaml`** (c'est un
-     paramètre du noeud, pas un argument de launch).
+**Solutions (appliquées)**
+1. `static_transform_publisher` lancés **avec** `--ros-args -p use_sim_time:=true`
+   (dans `run_demo_tb4.sh`). Rétablit `map→odom`.
+2. Throttle dédié `scan_throttle_node` : le lidar est bridgé vers **`/scan_raw`**
+   (~300 Hz) puis republié à **10 Hz** sur **`/scan`**. SLAM consomme `/scan`
+   (config inchangée). `0` drop mesuré après throttle.
 
-**Statut**
-Cause #1 corrigée et vérifiée (`map→odom` rétabli). Cause #2 : le throttle 10 Hz
-est validé côté débit (8,6 Hz mesuré) ; le réglage `scan_topic` doit être posé
-dans le YAML pour être pris en compte. Limitation pré-existante de la simulation
+**Statut : RÉSOLU et vérifié end-to-end**
+Avec le moteur Ogre v1 (#10) + TF sim-time + throttle 10 Hz : `/scan` porte des
+rayons réels (0,2–12 m), `map→odom` publié, **carte SLAM 80×60 (4×3 m)**,
+`0` scan jeté. Limitation initiale levée sur la simulation
 sur ce VM ARM64, indépendante du refactoring.
 
 ---

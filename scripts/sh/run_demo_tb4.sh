@@ -24,10 +24,16 @@ set -eo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/_common.sh"
 source "${SCRIPT_DIR}/_turtlebot4_helper.sh"
+source "${SCRIPT_DIR}/_platform.sh"
+
+# Detect Mac/Parallels (ARM64) vs Win/WSL2 (x86) and load the matching profile
+# (render engine, software-GL, DDS transport). Override with IA712_PLATFORM=mac|win.
+source_platform_profile "${REPO_ROOT}"
 
 # Model: positional arg ($1) wins, then MODEL env, else 'standard'.
-# NOTE: the 'lite' model has an RPLIDAR self-hit bug in Ignition (all rays
-# return range_min) — 'standard' is required for SLAM to build a real map.
+# NOTE: both 'lite' and 'standard' work — the RPLIDAR only returned range_min
+# because Ogre2's gpu_lidar fails under software GL; the platform profile uses
+# Ogre v1 on Mac/Parallels so the lidar sees the environment (ERRORS_AND_FIXES #10).
 MODEL="${1:-${MODEL:-standard}}"
 WORLD="${IA712_TB4_WORLD:-maze}"
 NAMESPACE="turtlebot4"
@@ -48,15 +54,15 @@ WAYPOINTS_FILE="${WS_DIR}/src/rescue_robot/config/waypoints_tb4_${WORLD}.yaml"
 
 LOGDIR=$(mktemp -d /tmp/ia712_demo_XXXX)
 
-# ── Fast-DDS UDP-only transport — disables shared memory (SHM) transport.
+# ── Fast-DDS UDP-only transport (Mac/Parallels: IA712_USE_UDP_DDS=1).
 #    Stale /dev/shm/fastrtps_port* files from previous sessions block the
 #    ign_ros2_control controller_manager from being reachable via service
 #    calls (service is listed but never responds). UDP is slower but stable.
-export FASTRTPS_DEFAULT_PROFILES_FILE="${REPO_ROOT}/config/fastdds_udp_only.xml"
-[ -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ] || \
-    FASTRTPS_DEFAULT_PROFILES_FILE="/tmp/fastdds_udp_only.xml"
-# Write fallback profile if needed
-if [ ! -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ]; then
+#    On WSL2 (IA712_USE_UDP_DDS=0) the default transport is kept.
+if [ "${IA712_USE_UDP_DDS:-0}" = "1" ]; then
+    export FASTRTPS_DEFAULT_PROFILES_FILE="${REPO_ROOT}/config/fastdds_udp_only.xml"
+    [ -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ] || FASTRTPS_DEFAULT_PROFILES_FILE="/tmp/fastdds_udp_only.xml"
+    if [ ! -f "${FASTRTPS_DEFAULT_PROFILES_FILE}" ]; then
 cat >"${FASTRTPS_DEFAULT_PROFILES_FILE}" <<'XML'
 <?xml version="1.0" encoding="UTF-8" ?>
 <profiles xmlns="http://www.eprosima.com/XMLSchemas/fastRTPS_Profiles">
@@ -76,11 +82,14 @@ cat >"${FASTRTPS_DEFAULT_PROFILES_FILE}" <<'XML'
     </participant>
 </profiles>
 XML
+    fi
 fi
 
-# ── Clean stale SHM files from previous sessions (must happen before any
-#    ROS 2 process starts to avoid zombie controller_manager services)
-find /dev/shm -name "fastrtps_port*" -delete 2>/dev/null || true
+# ── Clean stale SHM files from previous sessions (harmless everywhere; must
+#    happen before any ROS 2 process starts to avoid zombie services)
+if [ "${IA712_CLEAN_SHM:-1}" = "1" ]; then
+    find /dev/shm -name "fastrtps_port*" -delete 2>/dev/null || true
+fi
 
 # ── Workspace overlay — AMENT_PREFIX_PATH + PYTHONPATH avoids the NFS
 #    symlink issue in colcon's local_setup.bash on Parallels shared folders.
@@ -91,12 +100,10 @@ export PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}"
 export IA712_SLAM_PARAMS="${SLAM_PARAMS}"
 export IA712_NAV2_PARAMS="${NAV2_PARAMS}"
 
-# ── Software GL for Mesa/Parallels ARM64 (RViz2)
-export LIBGL_ALWAYS_SOFTWARE="${LIBGL_ALWAYS_SOFTWARE:-1}"
-export MESA_GL_VERSION_OVERRIDE="${MESA_GL_VERSION_OVERRIDE:-3.3}"
-export MESA_GLSL_VERSION_OVERRIDE="${MESA_GLSL_VERSION_OVERRIDE:-330}"
+# ── GL / Qt / DISPLAY come from the platform profile (config/platform_*.sh):
+#    Mac/Parallels forces software GL; WSL2 keeps the hardware WSLg GPU.
+#    Only set safe fallbacks here if no profile was sourced.
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
-export GDK_BACKEND="${GDK_BACKEND:-x11}"
 export DISPLAY="${DISPLAY:-:0}"
 
 # ── Ignition plugin path (required outside ros2 launch context)
@@ -112,7 +119,7 @@ _cleanup() {
     echo "[demo-tb4] Arrêt en cours..."
     for pid in \
         "${WP_PID:-}" "${RVIZ_PID:-}" "${NAV2_PID:-}" \
-        "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" \
+        "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" "${THROTTLE_PID:-}" \
         "${STF2_PID:-}" "${STF1_PID:-}" \
         "${SPAWN_PID:-}" "${BRIDGE_PID:-}" "${GUI_PID:-}" \
         "${IGN_PID:-}" "${RSP_PID:-}" \
@@ -120,7 +127,7 @@ _cleanup() {
         [ -n "${pid}" ] && kill "${pid}" 2>/dev/null || true
     done
     sleep 2
-    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|waypoint_follower|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
+    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
     echo "[demo-tb4] Arrêt terminé. Logs: ${LOGDIR}"
 }
 trap _cleanup INT TERM EXIT
@@ -153,22 +160,27 @@ sleep 6
 kill -0 "${RSP_PID}" 2>/dev/null \
     || { echo "[ERR] RSP mort"; tail -3 "${LOGDIR}/rsp.log"; exit 1; }
 
-# ── ÉTAPE 2 : Ignition server (toujours headless: physique + capteurs stables)
-echo "[2/8] Ignition Gazebo server (-s, monde=${WORLD})..."
-ign gazebo -s -r -v 2 "${WORLD_SDF}" >"${LOGDIR}/ign.log" 2>&1 &
+# ── ÉTAPE 2 : Ignition server (headless: physique + CAPTEURS).
+#    Le moteur de rendu vient du profil plateforme :
+#      Mac/Parallels -> ogre (v1)  : Ogre2 gpu_lidar échoue en software GL et
+#                                    renvoie range_min sur tous les rayons (#10).
+#      WSL2/x86      -> ogre2      : GPU matériel via WSLg, lidar OK nativement.
+RENDER_ENGINE="${IA712_RENDER_ENGINE:-ogre2}"
+echo "[2/8] Ignition Gazebo server (-s, monde=${WORLD}, render=${RENDER_ENGINE})..."
+ign gazebo -s -r -v 2 --render-engine "${RENDER_ENGINE}" "${WORLD_SDF}" >"${LOGDIR}/ign.log" 2>&1 &
 IGN_PID=$!
 echo "  PID=${IGN_PID} — attente 12 s"
 sleep 12
 kill -0 "${IGN_PID}" 2>/dev/null \
     || { echo "[ERR] Ignition mort"; tail -5 "${LOGDIR}/ign.log"; exit 1; }
 
-# ── ÉTAPE 2b : Client GUI Gazebo (optionnel) — moteur Ogre v1.
-#    Ogre2 (défaut) crashe sur le GPU virtuel Parallels ARM64 ; Ogre v1 + Mesa
-#    software GL fonctionne. La fenêtre Gazebo s'ouvre vraiment.
+# ── ÉTAPE 2b : Client GUI Gazebo (optionnel) — même moteur que le serveur.
+#    Mac/Parallels : Ogre2 crashe → on attache un client Ogre v1 (fenêtre OK).
+#    WSL2/x86 : Ogre2 via WSLg (fenêtre native).
 #    Désactiver avec IA712_TB4_GUI=0 (CI / RAM limitée).
 if [ "${IA712_TB4_GUI:-1}" != "0" ]; then
-    echo "[2b/8] Client GUI Gazebo (Ogre v1)..."
-    LIBGL_ALWAYS_SOFTWARE=1 ign gazebo -g --render-engine ogre \
+    echo "[2b/8] Client GUI Gazebo (render=${RENDER_ENGINE})..."
+    ign gazebo -g --render-engine "${RENDER_ENGINE}" \
         >"${LOGDIR}/ign_gui.log" 2>&1 &
     GUI_PID=$!
     sleep 6
@@ -200,14 +212,15 @@ sleep 20
 kill -0 "${SPAWN_PID}" 2>/dev/null \
     || { echo "[WARN] spawn terminé (normal si sync)"; }
 
-# ── ÉTAPE 4 : Bridges capteurs manquants (lidar → /scan, camera → /camera/image_raw)
-#    Le spawn officiel bridge vers /${NAMESPACE}/scan et oakd/rgb/… — on rebridge
-#    vers les topics standards attendus par notre SLAM et RViz2.
-echo "[4/8] Bridges capteurs standards..."
+# ── ÉTAPE 4 : Bridges capteurs (lidar → /scan_raw, camera → /camera/image_raw)
+#    Le lidar Ignition publie à ~300 Hz ; on bridge vers /scan_raw puis on
+#    throttle à 10 Hz vers /scan (sinon le MessageFilter de SLAM déborde et la
+#    carte reste 7×7 — cf. ERRORS_AND_FIXES #25).
+echo "[4/8] Bridges capteurs (lidar → /scan_raw → throttle → /scan)..."
 ros2 run ros_gz_bridge parameter_bridge \
     "/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan" \
     --ros-args \
-    -r "/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan:=/scan" \
+    -r "/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan:=/scan_raw" \
     >"${LOGDIR}/lidar.log" 2>&1 &
 
 ros2 run ros_gz_bridge parameter_bridge \
@@ -217,7 +230,16 @@ ros2 run ros_gz_bridge parameter_bridge \
     >"${LOGDIR}/cam.log" 2>&1 &
 
 BRIDGE_PID=$!
-sleep 4
+sleep 2
+
+# Throttle /scan_raw (~300 Hz) → /scan (10 Hz)
+PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" \
+    python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/scan_throttle_node.py" \
+    --ros-args -p use_sim_time:=true \
+    -p in_topic:=/scan_raw -p out_topic:=/scan -p rate_hz:=10.0 \
+    >"${LOGDIR}/scan_throttle.log" 2>&1 &
+THROTTLE_PID=$!
+sleep 3
 
 echo "  Topics: $(for t in /clock /scan /camera/image_raw /${NAMESPACE}/odom; do
     P=$(ros2 topic info "$t" 2>/dev/null | grep 'Publisher count:' | awk '{print $3}')
