@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!--
+  Minimal navigate_to_pose BT — no recovery, no replanning conditions.
+  Uses only ComputePathToPose + FollowPath (always available in nav2_bringup).
+  Avoids GlobalUpdatedGoal / spin / backup nodes absent from plugin_lib_names.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <RecoveryNode number_of_retries="3" name="NavigateRecovery">
+      <Sequence name="NavigateWithReplanning">
+        <RateController hz="1.0">
+          <ComputePathToPose goal="{goal}" path="{path}" planner_id="GridBased" error_code_id="{compute_path_error_code}"/>
+        </RateController>
+        <FollowPath path="{path}" controller_id="FollowPath" error_code_id="{follow_path_error_code}"/>
+      </Sequence>
+      <WaitCancel/>
+    </RecoveryNode>
+  </BehaviorTree>
+</root>
