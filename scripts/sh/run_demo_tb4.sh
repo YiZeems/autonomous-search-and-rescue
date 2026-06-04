@@ -46,7 +46,15 @@ NAV2_PARAMS="${WS_INSTALL}/rescue_robot/share/rescue_robot/config/nav2_params_tb
 RVIZ_CFG="${WS_INSTALL}/rescue_robot/share/rescue_robot/rviz/project_view.rviz"
 NAV_LAUNCH="${WS_INSTALL}/rescue_robot/share/rescue_robot/launch/navigation_tb4.launch.py"
 WP_LAUNCH="${WS_INSTALL}/rescue_robot/share/rescue_robot/launch/waypoint.launch.py"
-WORLD_SDF="/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds/${WORLD}.sdf"
+EXP_LAUNCH="${WS_INSTALL}/rescue_robot/share/rescue_robot/launch/exploration.launch.py"
+
+# World SDF: project worlds (rescue_world) take priority, else upstream TB4 worlds.
+PROJECT_WORLD="${WS_INSTALL}/rescue_world/share/rescue_world/worlds/${WORLD}.sdf"
+if [ -f "${PROJECT_WORLD}" ]; then
+    WORLD_SDF="${PROJECT_WORLD}"
+else
+    WORLD_SDF="/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds/${WORLD}.sdf"
+fi
 
 # ── Waypoints: world-specific file if present, else generic fallback
 WAYPOINTS_FILE="${WS_DIR}/src/rescue_robot/config/waypoints_tb4_${WORLD}.yaml"
@@ -108,7 +116,7 @@ export DISPLAY="${DISPLAY:-:0}"
 
 # ── Ignition plugin path (required outside ros2 launch context)
 export IGN_GAZEBO_SYSTEM_PLUGIN_PATH="/opt/ros/humble/lib:${IGN_GAZEBO_SYSTEM_PLUGIN_PATH:-}"
-export IGN_GAZEBO_RESOURCE_PATH="/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds:/opt/ros/humble/share/irobot_create_ignition_bringup/worlds:/opt/ros/humble/share:${IGN_GAZEBO_RESOURCE_PATH:-}"
+export IGN_GAZEBO_RESOURCE_PATH="${WS_INSTALL}/rescue_world/share/rescue_world/worlds:/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds:/opt/ros/humble/share/irobot_create_ignition_bringup/worlds:/opt/ros/humble/share:${IGN_GAZEBO_RESOURCE_PATH:-}"
 
 # ────────────────────────────────────────────────────────────────────
 _CLEANUP_DONE=0
@@ -127,7 +135,7 @@ _cleanup() {
         [ -n "${pid}" ] && kill "${pid}" 2>/dev/null || true
     done
     sleep 2
-    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
+    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|frontier_explorer|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
     echo "[demo-tb4] Arrêt terminé. Logs: ${LOGDIR}"
 }
 trap _cleanup INT TERM EXIT
@@ -342,8 +350,9 @@ kill -0 "${RVIZ_PID}" 2>/dev/null \
     && echo "  RViz2 PID=${RVIZ_PID} VIVANT" \
     || echo "  [WARN] RViz2 mort — voir ${LOGDIR}/rviz2.log"
 
-# ── ÉTAPE 8 : Waypoint follower (parcours + résultats)
-echo "[8/8] Waypoint follower → ${WAYPOINTS_FILE##*/}"
+# ── ÉTAPE 8 : Navigation — exploration autonome (frontière) OU waypoints.
+#    IA712_EXPLORE=1  -> le robot explore tout seul (frontier_explorer_node)
+#    sinon            -> suit le parcours de waypoints prédéfini.
 echo ""
 echo "[demo-tb4] ╔══════════════════════════════════════════╗"
 echo "[demo-tb4] ║   Navigation en cours — suivre RViz2     ║"
@@ -351,14 +360,24 @@ echo "[demo-tb4] ║   Ctrl+C pour arrêter proprement         ║"
 echo "[demo-tb4] ╚══════════════════════════════════════════╝"
 echo ""
 
-ros2 launch "${WP_LAUNCH}" \
-    waypoints_file:="${WAYPOINTS_FILE}" \
-    loop:=false \
-    use_sim_time:=true \
-    >"${LOGDIR}/wp.log" 2>&1 &
-WP_PID=$!
+if [ "${IA712_EXPLORE:-0}" = "1" ]; then
+    echo "[8/8] Exploration autonome (frontier_explorer_node)"
+    ros2 launch "${EXP_LAUNCH}" \
+        use_sim_time:=true \
+        base_frame:="${NAMESPACE}/base_link" \
+        >"${LOGDIR}/exploration.log" 2>&1 &
+    WP_PID=$!
+else
+    echo "[8/8] Waypoint follower → ${WAYPOINTS_FILE##*/}"
+    ros2 launch "${WP_LAUNCH}" \
+        waypoints_file:="${WAYPOINTS_FILE}" \
+        loop:=false \
+        use_sim_time:=true \
+        >"${LOGDIR}/wp.log" 2>&1 &
+    WP_PID=$!
+fi
 
-# Attendre la fin du waypoint follower
+# Attendre la fin de la navigation (Ctrl+C pour exploration qui tourne en continu)
 wait "${WP_PID}" 2>/dev/null || true
 
 END_WALL=$(date +%s)

@@ -1,5 +1,16 @@
 frontier_explorer_node:
   ros__parameters:
+    use_sim_time: true
+    # Frame to locate the robot in for goal selection.
+    #   TurtleBot3 (Gazebo Classic): base_footprint
+    #   TurtleBot4 (Ignition):       turtlebot4/base_link  (override at launch)
+    map_frame: map
+    base_frame: base_footprint
+    # A frontier cluster must have at least this many cells to be worth visiting
+    # (filters out 1-2 cell noise on the explored/unknown boundary).
     min_frontier_size: 3
-    goal_timeout_sec: 30.0
+    # How often to (re)evaluate frontiers and pick the next goal.
+    replan_period_sec: 3.0
+    # Stop exploring once this fraction of the map is known (matches the BT
+    # supervisor and the project's 90% coverage success criterion).
     coverage_stop_threshold: 0.90

@@ -352,5 +352,20 @@
                 </visual>
             </link>
         </model>
+        <model name='victim_3'>
+            <static>1</static>
+            <pose>4.600 -4.600 0.200 0 0 0</pose>
+            <link name='link'>
+                <collision name='collision'>
+                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
+                </collision>
+                <visual name='visual'>
+                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
+                    <material>
+                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
+                    </material>
+                </visual>
+            </link>
+        </model>
     </world>
 </sdf>

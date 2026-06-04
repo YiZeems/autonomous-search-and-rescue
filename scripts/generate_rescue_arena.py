@@ -56,11 +56,12 @@ RUBBLE = [
     (-4.6, 0.0, 0.3),
 ]
 
-# Victims: red cylinders (x, y).
+# Victims: red cylinders (x, y) — one per room (NE, SW, NW, SE).
 VICTIMS = [
     (4.6, 4.6),
     (-4.6, -4.6),
     (-4.6, 4.6),
+    (4.6, -4.6),
 ]
 
 
