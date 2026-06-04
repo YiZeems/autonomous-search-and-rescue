@@ -563,11 +563,24 @@ trop petit).
    (~300 Hz) puis republié à **10 Hz** sur **`/scan`**. SLAM consomme `/scan`
    (config inchangée). `0` drop mesuré après throttle.
 
-**Statut : RÉSOLU et vérifié end-to-end**
-Avec le moteur Ogre v1 (#10) + TF sim-time + throttle 10 Hz : `/scan` porte des
-rayons réels (0,2–12 m), `map→odom` publié, **carte SLAM 80×60 (4×3 m)**,
-`0` scan jeté. Limitation initiale levée sur la simulation
-sur ce VM ARM64, indépendante du refactoring.
+**Statut : partiellement résolu — dépend de la plateforme**
+Corrigés et vérifiés : moteur Ogre v1 (#10), TF statiques sim-time, throttle
+10 Hz (`0` scan jeté), et **re-stamp** du scan (`scan_throttle_node restamp:=true`)
+qui aligne l'horodatage du scan sur `/clock` (le lidar Ignition horodate ~1 s
+dans le futur, ce qui empêchait le lookup TF de SLAM).
+
+**Limite résiduelle (Mac/Parallels ARM64 uniquement)** : sous rendu logiciel,
+le `gpu_lidar` Ogre v1 renvoie des distances réelles mais **~80 % des rayons
+sont invalides (0.0)** (mesuré : ~128 rayons valides sur 640). C'est assez pour
+*voir* les obstacles dans RViz, mais **trop clairsemé pour une carte SLAM
+propre** : la grille d'occupation reste dégénérée (quasi tout « libre »). Ce
+n'est pas un bug du modèle ni du code — c'est la qualité du rendu de profondeur
+sans GPU.
+
+**Pour une vraie carte SLAM** : utiliser un hôte avec GPU (**WSL2/WSLg**, où le
+`gpu_lidar` est dense) — c'est le cas des coéquipiers ; ou le chemin **TB3 +
+Gazebo Classic** (capteur `ray` CPU, dense). Le monde `rescue_arena` est conçu
+pour fonctionner sur les deux. Voir `ros2_ws/src/rescue_world/maps/README.md`.
 
 ---
 

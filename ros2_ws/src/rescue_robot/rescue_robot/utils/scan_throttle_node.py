@@ -33,10 +33,16 @@ class ScanThrottleNode(Node):
         self.declare_parameter("in_topic", "/scan_raw")
         self.declare_parameter("out_topic", "/scan")
         self.declare_parameter("rate_hz", 10.0)
+        # The Ignition lidar bridge stamps scans slightly ahead of /clock; SLAM
+        # then can't look up the TF at that future stamp and never accumulates
+        # the map. Re-stamping the forwarded scan with the current sim clock
+        # keeps the lookup inside the TF buffer (ERRORS_AND_FIXES #25).
+        self.declare_parameter("restamp", True)
 
         in_topic = self.get_parameter("in_topic").value
         out_topic = self.get_parameter("out_topic").value
         self._period = 1.0 / float(self.get_parameter("rate_hz").value)
+        self._restamp = bool(self.get_parameter("restamp").value)
         self._last = 0.0
 
         self.pub = self.create_publisher(LaserScan, out_topic, _QOS)
@@ -50,6 +56,8 @@ class ScanThrottleNode(Node):
         now = self.get_clock().now().nanoseconds * 1e-9
         if now - self._last >= self._period:
             self._last = now
+            if self._restamp:
+                msg.header.stamp = self.get_clock().now().to_msg()
             self.pub.publish(msg)
 
 
