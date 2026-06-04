@@ -1,4 +1,7 @@
-# ROS 2 / colcon build artifacts
+# ROS 2 / colcon build artifacts (root level and inside ros2_ws)
+build/
+install/
+log/
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
