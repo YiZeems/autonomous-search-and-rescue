@@ -229,12 +229,65 @@ TurtleBot4 usually uses a different simulation stack (Ignition/newer Gazebo). Bi
 ./scripts/run.sh teleop-tb4
 ```
 
-### AMD64 / WSL2 setup
+### AMD64 / WSL2 setup (Windows 11 + WSLg)
+
+Install the full TurtleBot4 + Ignition Fortress stack (idempotent — `install-apt`
+already lists all of these):
 
 ```bash
-sudo apt install -y ros-humble-turtlebot4-simulator ros-humble-turtlebot4-desktop ros-humble-teleop-twist-keyboard
+./scripts/run.sh install-apt          # installs turtlebot4-simulator, ros-gz, ignition-gazebo6, irobot-create…
+# or the minimal TB4 subset:
+sudo apt install -y ros-humble-turtlebot4-simulator ros-humble-turtlebot4-desktop \
+    ros-humble-ros-gz-bridge ros-humble-ros-gz-sim libignition-gazebo6 ros-humble-xacro
+./scripts/run.sh build
+./scripts/run.sh check-tb4            # should list turtlebot4_* + irobot_create_* + Ignition 6.x + worlds
+./scripts/run.sh demo-tb4            # full demo: Ignition + SLAM + Nav2 + RViz2
+```
+
+#### WSLg OpenGL: Ogre2 vs software GL
+
+`demo-tb4`/`platform_win.sh` default to **Ogre2** on the WSLg hardware GPU. That
+works only if your WSLg GL driver is complete. Some setups expose OpenGL only
+through the Mesa **D3D12** driver (`ls /dev/dri` empty, only `/dev/dxg`), which
+**cannot** run Ogre2's GL3Plus path — `ign gazebo` then aborts in the Sensors
+RenderThread (`Ogre2Material::SetTextureMapImpl`, see
+[ERRORS_AND_FIXES.md](ERRORS_AND_FIXES.md) #10).
+
+If Gazebo crashes immediately on `demo-tb4`, switch to the Ogre v1 + llvmpipe
+software path:
+
+```bash
+IA712_WSL_SOFTWARE_GL=1 ./scripts/run.sh demo-tb4
+```
+
+To make it permanent on this machine, put the same settings in
+`config/local_env.sh` (git-ignored), which is sourced after `platform_win.sh`:
+
+```bash
+export IA712_RENDER_ENGINE=ogre        # Ogre v1, not ogre2
+export LIBGL_ALWAYS_SOFTWARE=1
+export MESA_GL_VERSION_OVERRIDE=3.3
+export MESA_GLSL_VERSION_OVERRIDE=330
+export IA712_USE_UDP_DDS=1             # controller_manager reachability (#21)
+export IA712_TB4_GUI=1                 # headless drops the controllers on WSLg
+```
+
+Notes verified on a WSLg/D3D12 box:
+- The Gazebo **and** RViz2 windows open fine under Ogre v1.
+- `demo-tb4` auto-detects the Ignition lidar/camera topics with `ign topic -l`,
+  so it works whether the model path is `model/<ns>/link/…` or the nested
+  `model/<ns>/<ns>/link/…` (the latter appears when the robot spawns with the dock).
+- Software GL is CPU-bound: SLAM mapping and Nav2 are slow, and the
+  `ign_ros2_control` controller_manager can be intermittently unreachable over
+  DDS (#21) — keep the GUI on and UDP DDS enabled. A real GPU host gives a
+  cleaner map.
+
+### TurtleBot4 — legacy minimal path
+
+```bash
 ./scripts/run.sh check-tb4
-./scripts/run.sh simulation-tb4
+./scripts/run.sh simulation-tb4       # upstream turtlebot4_ignition.launch.py only
+./scripts/run.sh teleop-tb4
 ```
 
 ### ARM64 setup

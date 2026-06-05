@@ -94,9 +94,14 @@ XML
 fi
 
 # ── Clean stale SHM files from previous sessions (harmless everywhere; must
-#    happen before any ROS 2 process starts to avoid zombie services)
+#    happen before any ROS 2 process starts to avoid zombie services).
+#    Fast-DDS leaves BOTH fastrtps_port<N> (lock) and fastrtps_<hash> (segment)
+#    plus sem.* semaphores. They pile up over runs and eventually the SHM
+#    transport fails with "open_and_lock_file failed" (ERRORS_AND_FIXES #21).
+#    Stopping the ros2 daemon first releases the handles it holds.
 if [ "${IA712_CLEAN_SHM:-1}" = "1" ]; then
-    find /dev/shm -name "fastrtps_port*" -delete 2>/dev/null || true
+    ros2 daemon stop >/dev/null 2>&1 || true
+    find /dev/shm -maxdepth 1 \( -name 'fastrtps*' -o -name 'sem.fastrtps*' \) -delete 2>/dev/null || true
 fi
 
 # ── Workspace overlay — AMENT_PREFIX_PATH + PYTHONPATH avoids the NFS
@@ -127,8 +132,8 @@ _cleanup() {
     echo "[demo-tb4] Arrêt en cours..."
     for pid in \
         "${WP_PID:-}" "${RVIZ_PID:-}" "${NAV2_PID:-}" \
-        "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" "${THROTTLE_PID:-}" \
-        "${STF2_PID:-}" "${STF1_PID:-}" \
+        "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" "${TF_STATIC_RELAY_PID:-}" "${THROTTLE_PID:-}" \
+        "${STF2_PID:-}" "${STF1_PID:-}" "${STF_ODOM_PID:-}" \
         "${SPAWN_PID:-}" "${BRIDGE_PID:-}" "${GUI_PID:-}" \
         "${IGN_PID:-}" "${RSP_PID:-}" \
         "${COV_PID:-}" "${EXP_PID:-}" "${MRK_PID:-}"; do
@@ -136,6 +141,14 @@ _cleanup() {
     done
     sleep 2
     pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|frontier_explorer|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
+    # turtlebot4_spawn.launch.py pulls in dozens of create3/turtlebot4 nodes
+    # (wheel_status, hazards, kidnap_estimator, motion_control, sensors, ui_mgr,
+    # ir_intensity, ros_gz bridges, ruby ign clients…). They are NOT children of
+    # this script, so they survive unless killed explicitly — otherwise they pile
+    # up across runs and starve the CPU (load > 500), which then makes Nav2
+    # lifecycle activation flaky. Kill them too.
+    pkill -9 -f "turtlebot4_spawn|turtlebot4_ignition|turtlebot4_node|irobot_create|create3|wheel_status|ui_mgr|sensors_node|pose_republisher|kidnap_estimator|ir_intensity|interface_button|hazards_vector|motion_control|ros_gz_bridge|ros_ign_bridge|spawner" 2>/dev/null || true
+    pkill -9 -f "[r]uby" 2>/dev/null || true
     echo "[demo-tb4] Arrêt terminé. Logs: ${LOGDIR}"
 }
 trap _cleanup INT TERM EXIT
@@ -151,22 +164,34 @@ echo "[demo-tb4] ═════════════════════
 echo ""
 
 # ── ÉTAPE 1 : robot_state_publisher (doit être prêt avant le spawn pour
-#    éviter la race condition ign_ros2_control::getURDF())
-echo "[1/8] robot_state_publisher..."
-XACRO="/opt/ros/humble/share/turtlebot4_description/urdf/${MODEL}/turtlebot4.urdf.xacro"
-URDF="$(xacro "${XACRO}" gazebo:=ignition namespace:=${NAMESPACE} 2>/dev/null)"
-[ -z "${URDF}" ] && echo "[ERR] xacro a échoué pour ${XACRO}" && exit 1
+#    éviter la race condition ign_ros2_control::getURDF()).
+#    ATTENTION : le turtlebot4_spawn.launch.py installé inclut déjà
+#    robot_description.launch.py, qui lance SON PROPRE /turtlebot4/robot_state_publisher.
+#    Lancer un second nœud du même nom ici crée un DOUBLON : la découverte du
+#    service get_parameters devient ambiguë et gz_ros2_control boucle sur
+#    "robot_state_publisher service not available" -> contrôleurs jamais chargés,
+#    /turtlebot4/odom jamais publié. Par défaut on laisse donc le spawn fournir le
+#    RSP (IA712_DEMO_OWN_RSP=0). Mettre IA712_DEMO_OWN_RSP=1 pour l'ancien comportement
+#    (utile si votre turtlebot4_spawn n'inclut pas robot_description.launch.py).
+if [ "${IA712_DEMO_OWN_RSP:-0}" = "1" ]; then
+    echo "[1/8] robot_state_publisher (lancé par le demo)..."
+    XACRO="/opt/ros/humble/share/turtlebot4_description/urdf/${MODEL}/turtlebot4.urdf.xacro"
+    URDF="$(xacro "${XACRO}" gazebo:=ignition namespace:=${NAMESPACE} 2>/dev/null)"
+    [ -z "${URDF}" ] && echo "[ERR] xacro a échoué pour ${XACRO}" && exit 1
 
-ros2 run robot_state_publisher robot_state_publisher \
-    --ros-args -r __ns:=/${NAMESPACE} \
-    -p use_sim_time:=true \
-    -p "robot_description:=${URDF}" \
-    >"${LOGDIR}/rsp.log" 2>&1 &
-RSP_PID=$!
-echo "  PID=${RSP_PID} — attente 6 s"
-sleep 6
-kill -0 "${RSP_PID}" 2>/dev/null \
-    || { echo "[ERR] RSP mort"; tail -3 "${LOGDIR}/rsp.log"; exit 1; }
+    ros2 run robot_state_publisher robot_state_publisher \
+        --ros-args -r __ns:=/${NAMESPACE} \
+        -p use_sim_time:=true \
+        -p "robot_description:=${URDF}" \
+        >"${LOGDIR}/rsp.log" 2>&1 &
+    RSP_PID=$!
+    echo "  PID=${RSP_PID} — attente 6 s"
+    sleep 6
+    kill -0 "${RSP_PID}" 2>/dev/null \
+        || { echo "[ERR] RSP mort"; tail -3 "${LOGDIR}/rsp.log"; exit 1; }
+else
+    echo "[1/8] robot_state_publisher : fourni par turtlebot4_spawn (pas de doublon)"
+fi
 
 # ── ÉTAPE 2 : Ignition server (headless: physique + CAPTEURS).
 #    Le moteur de rendu vient du profil plateforme :
@@ -205,7 +230,7 @@ ros2 run ros_gz_bridge parameter_bridge \
 sleep 3
 
 # Vérifier clock avant spawn
-CLOCK_OK=$(timeout 4 ros2 topic echo /clock --once 2>/dev/null | head -1)
+CLOCK_OK=$(timeout 4 ros2 topic echo /clock --once 2>/dev/null | head -1 || true)
 [ -z "${CLOCK_OK}" ] && echo "[WARN] /clock muet, Ignition peut être lent"
 
 # spawn officiel : gère RSP wait + bridges (lidar, camera, odom, TF, controllers)
@@ -225,16 +250,48 @@ kill -0 "${SPAWN_PID}" 2>/dev/null \
 #    throttle à 10 Hz vers /scan (sinon le MessageFilter de SLAM déborde et la
 #    carte reste 7×7 — cf. ERRORS_AND_FIXES #25).
 echo "[4/8] Bridges capteurs (lidar → /scan_raw → throttle → /scan)..."
+# Auto-detect the real Ignition sensor topics. Depending on the installed
+# turtlebot4_description version (and whether the robot is spawned with the
+# standard dock), the model link path is either
+#   /world/<w>/model/<ns>/link/...                  (flat)
+# or
+#   /world/<w>/model/<ns>/<ns>/link/...             (robot nested under the
+#                                                    namespace model + dock)
+# Querying `ign topic -l` instead of hard-coding the namespace depth makes the
+# bridge work on both. Retry for a few seconds because the sensor topics can
+# register a bit after the spawn. `|| true` keeps `set -e`/pipefail from aborting
+# the demo when grep finds nothing on an early iteration.
+LIDAR_IGN=""
+for _t in $(seq 1 20); do
+    LIDAR_IGN="$(ign topic -l 2>/dev/null | grep -E '/rplidar/scan$' | head -1 || true)"
+    [ -n "${LIDAR_IGN}" ] && break
+    sleep 1
+done
+[ -n "${LIDAR_IGN}" ] || LIDAR_IGN="/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan"
+CAM_IGN="$(ign topic -l 2>/dev/null | grep -E '/rgbd_camera/image$' | head -1 || true)"
+[ -n "${CAM_IGN}" ] || CAM_IGN="/world/${WORLD}/model/${NAMESPACE}/link/oakd_rgb_camera_frame/sensor/rgbd_camera/image"
+# Derive the scan's actual frame_id from the Ignition topic path. The bridged
+# LaserScan keeps Ignition's frame_id, which is the scoped sensor name:
+#   /world/<w>/model/<a>/<b>/link/rplidar_link/sensor/rplidar/scan
+#     -> frame_id  <a>/<b>/rplidar_link/rplidar   (e.g. turtlebot4/turtlebot4/...)
+# slam_toolbox needs a static TF to THIS exact frame or it drops every scan with
+# "Message Filter dropping ... queue is full" and never publishes map->odom.
+SCAN_FRAME="$(printf '%s' "${LIDAR_IGN}" | sed -E 's#^/world/[^/]+/model/##; s#/link/#/#; s#/sensor/#/#; s#/scan$##')"
+[ -n "${SCAN_FRAME}" ] || SCAN_FRAME="${NAMESPACE}/rplidar_link/rplidar"
+echo "  lidar  Ignition: ${LIDAR_IGN}"
+echo "  camera Ignition: ${CAM_IGN}"
+echo "  scan frame_id  : ${SCAN_FRAME}"
+
 ros2 run ros_gz_bridge parameter_bridge \
-    "/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan" \
+    "${LIDAR_IGN}@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan" \
     --ros-args \
-    -r "/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan:=/scan_raw" \
+    -r "${LIDAR_IGN}:=/scan_raw" \
     >"${LOGDIR}/lidar.log" 2>&1 &
 
 ros2 run ros_gz_bridge parameter_bridge \
-    "/world/${WORLD}/model/${NAMESPACE}/link/oakd_rgb_camera_frame/sensor/rgbd_camera/image@sensor_msgs/msg/Image[ignition.msgs.Image" \
+    "${CAM_IGN}@sensor_msgs/msg/Image[ignition.msgs.Image" \
     --ros-args \
-    -r "/world/${WORLD}/model/${NAMESPACE}/link/oakd_rgb_camera_frame/sensor/rgbd_camera/image:=/camera/image_raw" \
+    -r "${CAM_IGN}:=/camera/image_raw" \
     >"${LOGDIR}/cam.log" 2>&1 &
 
 BRIDGE_PID=$!
@@ -250,37 +307,60 @@ THROTTLE_PID=$!
 sleep 3
 
 echo "  Topics: $(for t in /clock /scan /camera/image_raw /${NAMESPACE}/odom; do
-    P=$(ros2 topic info "$t" 2>/dev/null | grep 'Publisher count:' | awk '{print $3}')
+    P=$(ros2 topic info "$t" 2>/dev/null | grep 'Publisher count:' | awk '{print $3}' || true)
     printf "%s(%s) " "$t" "${P:-0}"; done)"
 
 # ── ÉTAPE 5 : Static TF bridges + relays TF et cmd_vel
 echo "[5/8] Static TF bridges + relays..."
 
-# a) turtlebot4/base_link ≡ base_link (connecte les deux arbres TF namespaced/non-namespaced)
-#    use_sim_time:=true est requis : sans lui les TF statiques portent l'horloge
-#    murale et le buffer tf2 (horloge sim) ne résout pas scan→odom → SLAM ne
-#    publie jamais map→odom (cf. ERRORS_AND_FIXES #7).
+# a) Connecter les frames RÉELS du diffdrive (irobot_create_control: odom_frame_id=odom,
+#    base_frame_id=base_link, NON namespacés) aux frames namespacés attendus par SLAM/Nav2
+#    (turtlebot4/odom, turtlebot4/base_link). Le diffdrive publie `odom → base_link`, donc :
+#      - turtlebot4/odom → odom        : rattache l'odom_frame de SLAM à l'arbre réel.
+#      - base_link → turtlebot4/base_link : rattache le base_frame de SLAM SANS donner un
+#        2e parent à base_link (dont le parent est déjà `odom` côté diffdrive — un double
+#        parent casserait l'arbre TF).
+#    Arbre final : map → turtlebot4/odom → odom → base_link → {turtlebot4/base_link,
+#    rplidar_link → scan_frame}. use_sim_time:=true requis (buffer tf2 en horloge sim, #7).
 ros2 run tf2_ros static_transform_publisher \
     --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 \
-    --frame-id "${NAMESPACE}/base_link" --child-frame-id base_link \
+    --frame-id "${NAMESPACE}/odom" --child-frame-id odom \
+    --ros-args -p use_sim_time:=true \
+    >"${LOGDIR}/stf_odom.log" 2>&1 &
+STF_ODOM_PID=$!
+
+ros2 run tf2_ros static_transform_publisher \
+    --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 \
+    --frame-id base_link --child-frame-id "${NAMESPACE}/base_link" \
     --ros-args -p use_sim_time:=true \
     >"${LOGDIR}/stf1.log" 2>&1 &
 STF1_PID=$!
 
-# b) rplidar_link ≡ turtlebot4/rplidar_link/rplidar (frame capteur Ignition → frame URDF)
+# b) rplidar_link ≡ <scan frame_id> (frame capteur Ignition → frame URDF)
+#    child-frame-id dérivé du topic détecté (gère le namespace simple OU doublé).
 ros2 run tf2_ros static_transform_publisher \
     --x 0 --y 0 --z 0 --yaw 0 --pitch 0 --roll 0 \
-    --frame-id rplidar_link --child-frame-id "${NAMESPACE}/rplidar_link/rplidar" \
+    --frame-id rplidar_link --child-frame-id "${SCAN_FRAME}" \
     --ros-args -p use_sim_time:=true \
     >"${LOGDIR}/stf2.log" 2>&1 &
 STF2_PID=$!
 
-# c) tf_relay : /turtlebot4/tf → /tf global
-#    QoS TRANSIENT_LOCAL subscriber requis pour matcher le publisher diffdrive_controller
+# c) tf_relay : /turtlebot4/tf → /tf global (dynamique, odom→base_link)
 PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" \
     python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/tf_relay_node.py" \
     >"${LOGDIR}/tf_relay.log" 2>&1 &
 TF_RELAY_PID=$!
+
+# c-bis) tf_static relay : /turtlebot4/tf_static → /tf_static global.
+#    Le RSP du spawn publie base_link→rplidar_link (et les autres frames URDF) sur
+#    /turtlebot4/tf_static NAMESPACÉ. Sans ce relais ils n'atteignent pas le
+#    /tf_static global → la chaîne scan_frame→…→base_link→odom est cassée → SLAM
+#    jette tous les scans (queue full) et ne crée jamais de carte.
+PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" \
+    python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/tf_relay_node.py" \
+    --ros-args -p src_topic:=/turtlebot4/tf_static -p dst_topic:=/tf_static -p static:=true \
+    >"${LOGDIR}/tf_static_relay.log" 2>&1 &
+TF_STATIC_RELAY_PID=$!
 
 # d) cmd_vel_relay : /cmd_vel (Nav2) → /turtlebot4/diffdrive_controller/cmd_vel_unstamped
 PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" \
@@ -294,7 +374,7 @@ sleep 5
 _TF_OK=0
 for _i in 1 2 3 4 5; do
     if timeout 3 ros2 run tf2_ros tf2_echo \
-            "${NAMESPACE}/rplidar_link/rplidar" "${NAMESPACE}/odom" \
+            "${SCAN_FRAME}" "${NAMESPACE}/odom" \
             2>/dev/null | grep -q "Translation"; then
         _TF_OK=1; break
     fi
@@ -319,7 +399,7 @@ else
     tail -5 "${LOGDIR}/nav2.log" 2>/dev/null
 fi
 
-MAP_W=$(timeout 4 ros2 topic echo /map --once 2>/dev/null | awk '/width/{print $2}')
+MAP_W=$(timeout 4 ros2 topic echo /map --once 2>/dev/null | awk '/width/{print $2}' || true)
 echo "  Map SLAM: ${MAP_W:-?} cellules"
 
 # ── ÉTAPE 7 : RViz2 + nœuds résultats

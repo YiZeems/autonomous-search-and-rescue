@@ -215,10 +215,19 @@ ign gazebo -s -r --render-engine ogre  depot.sdf   # → 1.68, 3.04, 7.37 m … 
 - **Mac/Parallels (ARM64, software GL)** : forcer le moteur **Ogre v1**
   (`--render-engine ogre`) pour le serveur (capteurs) **et** le client GUI.
   → lidar réel, SLAM construit une vraie carte (80×60+ vérifié), GUI sans crash.
-- **Win/WSL2 (x86, GPU WSLg)** : Ogre2 par défaut fonctionne (GPU matériel).
-- Le moteur est choisi automatiquement par le profil plateforme
+- **Win/WSL2 (x86, GPU WSLg) — corrigé 2026-06** : Ogre2 sur le GPU matériel,
+  MAIS le driver **Mesa D3D12** annonce seulement OpenGL **4.1 Compatibility** et
+  Ogre2 (GL3Plus) **crashe** alors dans le sensor RenderThread
+  (`Ogre2Material::SetTextureMapImpl` → `RenderSystem_GL3Plus` → `std::terminate`).
+  Fix vérifié : forcer **`MESA_GL_VERSION_OVERRIDE=4.5`** + `MESA_GLSL_VERSION_OVERRIDE=450`.
+  → Ogre2 ne crashe plus, gpu_lidar **dense**, GUI Gazebo+RViz OK.
+  - Hôte hybride (iGPU Intel + RTX) : WSLg prend l'iGPU par défaut ;
+    forcer le GPU discret avec **`MESA_D3D12_DEFAULT_ADAPTER_NAME=NVIDIA`**
+    (auto via `nvidia-smi` dans `platform_win.sh`).
+  - Repli sans GPU : `IA712_WSL_SOFTWARE_GL=1` (Ogre v1 + llvmpipe).
+- Le moteur + les overrides sont choisis automatiquement par le profil plateforme
   (`config/platform_mac.sh` / `platform_win.sh`, cf. `_platform.sh`).
-- La **caméra** marche dans les deux cas.
+- La **caméra** marche dans tous les cas.
 
 Voir aussi #25 (le lidar Ignition sort à ~300 Hz → throttle 10 Hz nécessaire
 pour que le MessageFilter de SLAM n'overflow pas).
@@ -584,6 +593,80 @@ pour fonctionner sur les deux. Voir `ros2_ws/src/rescue_world/maps/README.md`.
 
 ---
 
+## 26. WSL2 + RTX : Ogre2, découverte DDS et QoS (2026-06) ✅ RÉSOLU
+
+Mise en service du `demo-tb4` sur **Windows 11 + WSL2 + RTX 4070** (hôte hybride
+Intel iGPU + NVIDIA). Cascade de problèmes, tous corrigés sauf le dernier :
+
+1. **Crash Ogre2** (cf. #10) : `MESA_GL_VERSION_OVERRIDE=4.5` + sélection du GPU
+   NVIDIA via `MESA_D3D12_DEFAULT_ADAPTER_NAME` → Ogre2 OK, gpu_lidar dense, GUI OK.
+2. **Topic lidar non trouvé** : `turtlebot4_description` installé imbrique le modèle
+   en `model/turtlebot4/turtlebot4/link/...`. `run_demo_tb4.sh` auto-détecte le topic
+   ET dérive le **frame_id du scan** (`turtlebot4/turtlebot4/rplidar_link/rplidar`)
+   pour la static TF, sinon slam_toolbox jette tous les scans (queue full).
+3. **Doublon `robot_state_publisher`** : le `turtlebot4_spawn.launch.py` installé
+   inclut `robot_description.launch.py` qui lance déjà un RSP. Le RSP « étape 1 » du
+   demo créait un second nœud du même nom → `gz_ros2_control` ne trouvait pas le
+   service `robot_state_publisher` → contrôleurs jamais chargés, pas d'odom. Fix :
+   `IA712_DEMO_OWN_RSP=0` (défaut) — le spawn fournit le RSP unique.
+4. **Découverte DDS WSL fragile** (Fast-DDS) : même sans doublon, le spawner ne
+   joignait pas `/turtlebot4/controller_manager/list_controllers` (intermittent).
+   Fix : **CycloneDDS** (`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`, défaut WSL dans
+   `platform_win.sh`) → joint_state_broadcaster + diffdrive_controller chargés,
+   `/turtlebot4/odom` publié de façon fiable. `apt install ros-humble-rmw-cyclonedds-cpp`.
+5. **QoS strictes sous CycloneDDS** (Fast-DDS était laxiste) :
+   - `tf_relay_node` souscrivait `/turtlebot4/tf` en TRANSIENT_LOCAL alors que le
+     diffdrive publie VOLATILE → relay muet, `turtlebot4/odom` absent. Fix : VOLATILE.
+   - `scan_throttle_node` publiait `/scan` en BEST_EFFORT alors que slam_toolbox
+     souscrit RELIABLE → SLAM ne recevait aucun scan. Fix : publier `/scan` en RELIABLE.
+6. **Re-stamp scan trop « en avance »** : `scan_throttle_node` re-stampait `/scan`
+   à exactement « now », parfois juste devant la dernière TF odom→base_link publiée
+   par le diffdrive → la MessageFilter de slam_toolbox ne résolvait pas scan→odom et
+   jetait **tous** les scans (`queue is full`) → aucun nœud SLAM, pas de `map`. Fix :
+   `restamp_back_sec` (0.15 s par défaut) — re-stamp légèrement dans le passé pour que
+   la TF odom de cet horodatage existe déjà. → `queue full = 0`, frame `map` publié.
+7. **Arbre TF cassé (frames namespacés)** : (a) le RSP du spawn publie les TF
+   statiques URDF (`base_link→rplidar_link`…) sur **`/turtlebot4/tf_static`** namespacé,
+   jamais relayé → côté scan déconnecté. Fix : `tf_relay_node` paramétrable, 2e instance
+   `/turtlebot4/tf_static → /tf_static` (TRANSIENT_LOCAL). (b) le diffdrive
+   (`irobot_create_control`) publie `odom→base_link` **NON** namespacés, alors que
+   SLAM/Nav2 attendent `turtlebot4/odom`/`turtlebot4/base_link`. Fix : static TF
+   `turtlebot4/odom→odom` + `base_link→turtlebot4/base_link`. → arbre
+   `map→turtlebot4/odom→odom→base_link→{turtlebot4/base_link, rplidar_link→scan}`
+   connecté, **Nav2 ACTIF, SLAM `Registering sensor`**.
+8. **cmd_vel n'atteint pas le robot** : `cmd_vel_relay_node` relayait vers
+   `diffdrive_controller/cmd_vel_unstamped`, ce qui **bypass** le motion_control de la
+   create3 (qui envoie zéro) → robot immobile. Fix : relayer vers **`/turtlebot4/cmd_vel`**.
+9. **Découverte Nav2 lifecycle intermittente** : `lifecycle_manager` ne trouvait
+   pas toujours `planner_server/get_state` (multicast WSL instable). Fix :
+   `CYCLONEDDS_URI` épinglé sur l'interface **loopback** (`lo`) — découverte
+   déterministe sur un hôte unique.
+10. **Robustesse `run_demo_tb4.sh`** : `set -e`+`pipefail` tuait le script sur des
+   `$(timeout … | …)` best-effort (clock/map/`ign topic -l`) → `|| true` ; nettoyage
+   SHM élargi (`fastrtps*` + `sem.fastrtps*` + `ros2 daemon stop`) ; détection topic
+   lidar avec retry ; `IA712_DEMO_OWN_RSP`.
+
+11. **Famine CPU = la vraie cause de l'« intermittence »** : `turtlebot4_spawn`
+    lance ~30 nœuds create3/turtlebot4 (wheel_status, hazards, kidnap_estimator,
+    motion_control, sensors, ui_mgr, ir_intensity, bridges ros_gz, clients ruby ign…)
+    qui **ne sont pas des enfants du script** et survivaient à chaque run. Sur ~20
+    lancements ils se sont accumulés (~230 nœuds, **load > 580**) → la sim devenait
+    ultra-lente et le lifecycle Nav2 n'activait plus (ce qu'on prenait pour de la
+    flakiness DDS). Fix : le `_cleanup()` de `run_demo_tb4.sh` tue maintenant aussi
+    tous ces nœuds. Avec un système propre (**load ~7**), tout s'active du premier coup.
+
+**État** : ✅ **pipeline complet fonctionnel** (vérifié à load ~7, `unconnected
+trees = 0`, `Waiting for service = 0`) — GUI Gazebo **et** RViz sur la RTX 4070,
+robot spawné, contrôleurs actifs, `/turtlebot4/odom` + `/scan` dense + TF + caméra,
+**arbre TF connecté, slam_toolbox `Registering sensor`, carte SLAM (80+ cellules),
+Nav2 lifecycle ACTIF**, `cmd_vel → /turtlebot4/cmd_vel` pilote la create3, et
+l'**exploration autonome par frontières atteint 91,4 % de couverture** (`Exploration
+complete: coverage 91.4% >= 90%`). Important : entre deux lancements, laisser le
+`_cleanup()` faire son travail (ou `pkill` les nœuds create3) pour ne pas réaccumuler
+de charge CPU.
+
+---
+
 ## Résumé des fichiers modifiés
 
 | Fichier | Problème résolu |
@@ -594,7 +677,9 @@ pour fonctionner sur les deux. Voir `ros2_ws/src/rescue_world/maps/README.md`.
 | `config/nav2_params_tb4.yaml` | #11 + #12 + #13 + #16 + #22 + #23 — frames TB4, BT minimal, recovery, smoother lifecycle |
 | `config/waypoints_tb4_maze.yaml` | #11 — waypoints dans les bornes de la map |
 | `config/fastdds_udp_only.xml` | #21 — transport UDP-only (désactive SHM) |
-| `utils/tf_relay_node.py` | #5 + #6 — relay QoS TRANSIENT_LOCAL (base `TopicRelay`) |
+| `utils/tf_relay_node.py` | #5 + #6 + #26 — relay /turtlebot4/tf→/tf, QoS VOLATILE (compat CycloneDDS+Fast-DDS) |
+| `utils/scan_throttle_node.py` | #26 — /scan RELIABLE (sub slam_toolbox) + re-stamp -0.15 s (TF odom dispo) |
+| `config/platform_win.sh` | #10 + #26 — Ogre2 GL 4.5, GPU NVIDIA, CycloneDDS, SHM clean |
 | `utils/cmd_vel_relay_node.py` | cmd_vel Nav2 → diffdrive namespace (base `TopicRelay`) |
 | `utils/node_runner.py` | refactor — cycle de vie rclpy partagé (init/spin/shutdown) |
 | `utils/topic_relay.py` | refactor — base commune des deux relais |

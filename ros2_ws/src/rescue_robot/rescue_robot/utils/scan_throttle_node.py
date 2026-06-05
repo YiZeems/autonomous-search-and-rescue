@@ -11,16 +11,27 @@ This node forwards at most ``rate_hz`` messages per second from ``in_topic`` to
     ros2 run rescue_robot scan_throttle_node \
         --ros-args -p in_topic:=/scan_raw -p out_topic:=/scan -p rate_hz:=10.0
 """
+from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from sensor_msgs.msg import LaserScan
 
 from rescue_robot.utils.node_runner import run_node
 
-# Sensor data QoS: BEST_EFFORT matches the ros_gz LaserScan bridge.
-_QOS = QoSProfile(
+# Input QoS: BEST_EFFORT matches the ros_gz LaserScan bridge on /scan_raw.
+_SUB_QOS = QoSProfile(
     depth=10,
     reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.VOLATILE,
+)
+# Output QoS: RELIABLE. slam_toolbox subscribes to /scan as RELIABLE; a
+# BEST_EFFORT publisher is rejected under CycloneDDS ("incompatible QoS ...
+# RELIABILITY") and SLAM then receives no scans (no map). A RELIABLE publisher
+# is compatible with BOTH a RELIABLE subscriber (slam_toolbox) and a BEST_EFFORT
+# one (RViz), and works under Fast-DDS and CycloneDDS alike.
+_PUB_QOS = QoSProfile(
+    depth=10,
+    reliability=QoSReliabilityPolicy.RELIABLE,
     durability=QoSDurabilityPolicy.VOLATILE,
 )
 
@@ -38,15 +49,22 @@ class ScanThrottleNode(Node):
         # the map. Re-stamping the forwarded scan with the current sim clock
         # keeps the lookup inside the TF buffer (ERRORS_AND_FIXES #25).
         self.declare_parameter("restamp", True)
+        # Re-stamp slightly in the PAST. Stamping at exactly "now" can land just
+        # ahead of the latest odom->base_link transform the diffdrive_controller
+        # has published, so slam_toolbox's tf2 MessageFilter can't resolve
+        # scan->odom and drops every scan ("queue is full") -> no map. A small
+        # backdate guarantees the odom TF for that stamp already exists.
+        self.declare_parameter("restamp_back_sec", 0.15)
 
         in_topic = self.get_parameter("in_topic").value
         out_topic = self.get_parameter("out_topic").value
         self._period = 1.0 / float(self.get_parameter("rate_hz").value)
         self._restamp = bool(self.get_parameter("restamp").value)
+        self._restamp_back = float(self.get_parameter("restamp_back_sec").value)
         self._last = 0.0
 
-        self.pub = self.create_publisher(LaserScan, out_topic, _QOS)
-        self.sub = self.create_subscription(LaserScan, in_topic, self._on_scan, _QOS)
+        self.pub = self.create_publisher(LaserScan, out_topic, _PUB_QOS)
+        self.sub = self.create_subscription(LaserScan, in_topic, self._on_scan, _SUB_QOS)
         self.get_logger().info(
             f"scan_throttle_node: {in_topic} -> {out_topic} "
             f"@ {self.get_parameter('rate_hz').value} Hz"
@@ -57,7 +75,8 @@ class ScanThrottleNode(Node):
         if now - self._last >= self._period:
             self._last = now
             if self._restamp:
-                msg.header.stamp = self.get_clock().now().to_msg()
+                stamp = self.get_clock().now() - Duration(seconds=self._restamp_back)
+                msg.header.stamp = stamp.to_msg()
             self.pub.publish(msg)
 
 
