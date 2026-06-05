@@ -12,6 +12,7 @@ Commands:
   doctor-env   Print ROS/Gazebo/overlay diagnostics
   build        Build the ROS 2 workspace
   clean        Remove build/install/log
+  kill-sim     Kill leftover sim/ROS processes + clear stale DDS SHM (use if a demo feels stuck)
   mock         Launch mock system for parallel development
   bringup      Launch current bringup entrypoint
   simulation   Launch real TurtleBot3 Waffle Pi Gazebo simulation, default house world
@@ -53,6 +54,7 @@ case "$1" in
   doctor-env) "${SCRIPT_DIR}/sh/doctor_env.sh" ;;
   build) "${SCRIPT_DIR}/sh/build.sh" ;;
   clean) "${SCRIPT_DIR}/sh/clean.sh" ;;
+  kill-sim) "${SCRIPT_DIR}/sh/kill_sim.sh" ;;
   mock) "${SCRIPT_DIR}/sh/run_mock.sh" ;;
   bringup) "${SCRIPT_DIR}/sh/run_bringup.sh" ;;
   simulation) "${SCRIPT_DIR}/sh/run_simulation.sh" ;;
