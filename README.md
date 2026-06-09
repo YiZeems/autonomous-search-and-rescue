@@ -79,14 +79,14 @@
 
 ```mermaid
 flowchart LR
-    subgraph SIM["Gazebo Classic — disaster.world"]
+    subgraph SIM["Ignition Gazebo Fortress — warehouse / depot / maze (.sdf)"]
         ROBOT[TurtleBot3 Waffle Pi<br/>LIDAR + RGB camera]
         TAGS[(AprilTags 36h11)]
     end
 
     ROBOT -- /scan + /odom --> SLAM
-    ROBOT -- /camera/image_raw --> APRIL
-    ROBOT -- /camera/camera_info --> APRIL
+    ROBOT -- /oakd/rgb/preview/image_raw --> APRIL
+    ROBOT -- /oakd/rgb/preview/camera_info --> APRIL
 
     SLAM["<b>slam_toolbox</b><br/>(async + loop closure)"] -- /map<br/>TF map→odom --> EXPLORE
     SLAM -- /map --> METRIC
@@ -129,13 +129,13 @@ Full diagram + complete TF tree: [docs/architecture.md](docs/architecture.md).
 
 Each block corresponds to a ROS 2 package `team_b_*` (see [§ Repository layout](#repository-layout)).
 
-### [`team_b_world`](ros2_ws/src/team_b_world/) — Gazebo world + AprilTag targets
+### [`team_b_world`](ros2_ws/src/team_b_world/) — Ignition world + AprilTag targets
 
-- **Decision:** custom "disaster" world (~50 m²) with 3-5 rooms, 1 corridor, **topological loops** to stress loop closure.
-- **AprilTags:** **tag36h11** family, 16 × 16 cm, placed on walls at camera height (~10 cm above ground).
-- **Plan A:** edit with the mouse in Gazebo Classic then "Save as world".
-- **Plan B (fallback):** reuse `turtlebot3_world` or `turtlebot3_house` from the `turtlebot3_gazebo` package, and add AprilTags.
-- **AprilTag textures:** generated via `apriltag-generation` (Python) or via SDF models from [pal-robotics/aruco_ros](https://github.com/pal-robotics/aruco_ros).
+- **Decision:** since the TB4 migration (2026-06-08), we start from Ignition worlds shipped by `turtlebot4_ignition_bringup` (`warehouse`, `depot`, `maze`) instead of a Gazebo Classic `.world`.
+- **AprilTags:** **tag36h11** family, 16 × 16 cm, placed on walls at OAK-D camera height (~30 cm above ground on TB4 standard).
+- **Plan A:** start from `depot.sdf` or `maze.sdf` (Ignition Fortress), add custom AprilTag SDF models, re-save as `.sdf`.
+- **Plan B (fallback):** keep the default `warehouse` world and spawn tags via `ros2 run ros_gz_sim create -file <model.sdf>` at bringup time.
+- **AprilTag textures:** generated via `apriltag-generation` (Python). See [`maps.md`](../maps.md) at the repo root for candidate worlds and procedure.
 
 ### [`team_b_exploration`](ros2_ws/src/team_b_exploration/) — Autonomous exploration
 
@@ -176,7 +176,7 @@ Each block corresponds to a ROS 2 package `team_b_*` (see [§ Repository layout]
 ### [`team_b_perception`](ros2_ws/src/team_b_perception/) — Victim registry
 
 - **Detector:** [`apriltag_ros`](https://github.com/christianrauch/apriltag_ros) (**tag36h11** family, unique IDs, publishes TF directly).
-- **No manual calibration:** the Gazebo simulated camera publishes its intrinsics on `/camera/camera_info`.
+- **No manual calibration:** the Ignition-simulated OAK-D publishes its intrinsics on `/oakd/rgb/preview/camera_info`.
 - **`victim_registry_node`** (Python):
   - Subscribes to `/detections` (`apriltag_msgs/AprilTagDetectionArray`).
   - For each new ID: `tf_buffer.transform()` of the tag to `map`.
@@ -237,15 +237,15 @@ Each block corresponds to a ROS 2 package `team_b_*` (see [§ Repository layout]
 ### [`team_b_bringup`](ros2_ws/src/team_b_bringup/) — Launch & configs
 
 - **One launch file:** `bringup.launch.py` (assignment requirement).
-- **Target content (to be wired in L15+):**
-  1. `gazebo_ros launch gazebo.launch.py world:=disaster.world`
-  2. `turtlebot3_bringup spawn_turtlebot3.launch.py`
-  3. `slam_toolbox online_async_launch.py`
-  4. `nav2_bringup navigation_launch.py use_sim_time:=true`
-  5. `apriltag_ros apriltag_node`
-  6. Custom nodes: `victim_registry`, `coverage_evaluator`, `bt_runner`
-  7. RViz2 with dedicated config (`rviz/sar.rviz`)
-- **`headless:=true` argument** for benchmarking without Gazebo GUI (significant CPU saving in WSL).
+- **Current content (TB4 / Ignition Fortress stack since 2026-06-08):**
+  1. `turtlebot4_ignition_bringup turtlebot4_ignition.launch.py` (sim + Create 3 + RPLIDAR + OAK-D, **single Ignition instance**)
+  2. `turtlebot4_navigation slam.launch.py` with our loop-closure-tuned `slam_params.yaml`
+  3. `turtlebot4_navigation nav2.launch.py` with default Nav2 params
+  4. `apriltag_ros apriltag_node` remapped onto the OAK-D stream (`/oakd/rgb/preview/image_raw`)
+  5. RViz2 with dedicated `rviz/sar.rviz` (Frame Rate clamped to 10 for perf)
+- **To wire in L16+:** custom nodes `victim_registry`, `coverage_evaluator`, `bt_runner` (BehaviorTree.CPP).
+- **`headless:=true` argument** for benchmarking without the Ignition GUI (significant CPU saving in WSL).
+- **Isolation toggles:** `launch_slam:=false`, `launch_nav2:=false`, `launch_apriltag:=false`, `launch_rviz:=false` — test bricks one at a time without restarting the simulator.
 
 ---
 
@@ -287,22 +287,29 @@ Naming convention: **`team_b_*`** prefix to isolate our packages from vendor dep
 
 > **If you use Conda**: deactivate the environment (`conda deactivate`) before `colcon build`, otherwise `ament_cmake` will use Conda's Python which lacks `catkin_pkg`.
 
-### ROS packages
+### ROS packages (TurtleBot 4 + Ignition Gazebo Fortress)
 
 ```bash
 sudo apt update && sudo apt install -y \
+  ros-humble-turtlebot4-simulator \
+  ros-humble-turtlebot4-ignition-bringup \
+  ros-humble-turtlebot4-navigation \
+  ros-humble-turtlebot4-msgs \
+  ros-humble-irobot-create-msgs \
+  ros-humble-ros-gz-bridge \
   ros-humble-nav2-bringup \
   ros-humble-nav2-behavior-tree \
   ros-humble-slam-toolbox \
-  ros-humble-turtlebot3-* \
   ros-humble-apriltag-ros \
-  ros-humble-gazebo-ros-pkgs \
   ros-humble-rviz2 \
   ros-humble-tf2-tools \
   ros-humble-behaviortree-cpp-v3 \
+  ignition-fortress \
   python3-colcon-common-extensions \
   python3-vcstool
 ```
+
+> **TB3 → TB4 migration (2026-06-08):** the project initially used TurtleBot 3 Waffle Pi under Gazebo Classic 11. We switched to **TurtleBot 4** (Create 3 + RPLIDAR + OAK-D) under **Ignition Gazebo Fortress** to leverage OAK-D (RGB-D) and the `turtlebot4_navigation` stack that cleanly wraps `slam_toolbox` + Nav2.
 
 ### External packages to vendor (Prof. Yan's recommendation)
 
@@ -315,9 +322,9 @@ vcs import src/third_party < team_b.repos
 ### Environment variables (add to `~/.bashrc`)
 
 ```bash
-export TURTLEBOT3_MODEL=waffle_pi    # RGB camera required for AprilTag
 source /opt/ros/humble/setup.bash
 source ~/projet_robotique_mobile/autonomous-search-and-rescue/ros2_ws/install/setup.bash
+# No TURTLEBOT_MODEL env var needed — passed as a launch argument (model:=standard|lite)
 ```
 
 ---
@@ -332,12 +339,12 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-### Launch (L15)
+### Launch (L15, TurtleBot 4 / Ignition Fortress stack)
 
 Two launch files, kept separate to validate bricks in isolation:
 
 ```bash
-# Terminal 1 — full bringup (Gazebo + SLAM + Nav2 + AprilTag + RViz)
+# Terminal 1 — full bringup (Ignition + Create 3 + RPLIDAR + OAK-D + SLAM + Nav2 + AprilTag + RViz)
 ros2 launch team_b_bringup bringup.launch.py
 
 # Terminal 2 — autonomous exploration (run once /map and Nav2 are ready)
@@ -346,25 +353,25 @@ ros2 launch team_b_bringup exploration.launch.py
 
 `bringup.launch.py` arguments:
 
-| Argument          | Values                      | Description                                                |
-| ----------------- | --------------------------- | ---------------------------------------------------------- |
-| `use_sim_time`    | `true` \| `false`           | Use Gazebo `/clock` for all nodes                          |
-| `headless`        | `true` \| `false`           | Run Gazebo without GUI (CI / benchmark)                    |
-| `world`           | path to `.world`            | Defaults to `turtlebot3_house.world` (see [maps.md](../maps.md)) |
-| `x_pose`, `y_pose`| float                       | TurtleBot3 spawn position                                  |
-| `launch_rviz`     | `true` \| `false`           | Launch RViz2                                               |
-| `launch_slam`     | `true` \| `false`           | Launch `slam_toolbox`                                      |
-| `launch_nav2`     | `true` \| `false`           | Launch the Nav2 stack                                      |
-| `launch_apriltag` | `true` \| `false`           | Launch the `apriltag_ros` detector                         |
-| `algo`            | `greedy` \| `info_gain`     | Exploration algorithm (consumed by `exploration.launch.py`)|
-| `run_id`          | int                         | Run identifier for benchmark logs                          |
+| Argument          | Values                            | Description                                                |
+| ----------------- | --------------------------------- | ---------------------------------------------------------- |
+| `use_sim_time`    | `true` \| `false`                 | Use the Ignition `/clock` for all nodes                    |
+| `headless`        | `true` \| `false`                 | Run Ignition without GUI (CI / benchmark)                  |
+| `world`           | `warehouse` \| `depot` \| `maze`  | Ignition world (default `warehouse`, see [maps.md](../maps.md)) |
+| `model`           | `standard` \| `lite`              | TurtleBot 4 variant (`standard` ships the OAK-D)           |
+| `launch_rviz`     | `true` \| `false`                 | Launch RViz2 with `sar.rviz` (Frame Rate=10 for perf)      |
+| `launch_slam`     | `true` \| `false`                 | Launch `slam_toolbox` via `turtlebot4_navigation/slam.launch.py` |
+| `launch_nav2`     | `true` \| `false`                 | Launch Nav2 via `turtlebot4_navigation/nav2.launch.py`     |
+| `launch_apriltag` | `true` \| `false`                 | Launch `apriltag_ros` on the OAK-D stream (`/oakd/rgb/preview/image_raw`) |
+| `algo`            | `greedy` \| `info_gain`           | Exploration algorithm (consumed by `exploration.launch.py`)|
+| `run_id`          | int                               | Run identifier for benchmark logs                          |
 
 ### Testing each brick in isolation (L15)
 
 ```bash
 # SLAM only (no Nav2, no AprilTag) — drive manually with teleop to build the map
 ros2 launch team_b_bringup bringup.launch.py launch_nav2:=false launch_apriltag:=false
-ros2 run turtlebot3_teleop teleop_keyboard   # in a second terminal
+ros2 run teleop_twist_keyboard teleop_twist_keyboard   # in a second terminal (remap /cmd_vel if needed)
 
 # AprilTag only — verifies the node runs (publishes empty /detections until a tag is in view)
 ros2 launch team_b_bringup bringup.launch.py launch_slam:=false launch_nav2:=false
@@ -398,7 +405,7 @@ python3 experiments/plot_results.py --runs experiments/runs/
 | ------- | :----: | ------------------------------------------------------------------------------------------------------- |
 | L13     |   Done   | Project B selected, team formed, repo created                                                            |
 | L14     |   Done   | Architecture defined, **6 `team_b_*` packages scaffolded and `colcon build` passes**                     |
-| L15     |   WIP    | `bringup.launch.py` runs Gazebo + slam_toolbox + Nav2 + apriltag_ros + RViz ; `exploration.launch.py` runs `explore_lite` |
+| L15     |   Done   | **TB4 / Ignition Fortress migration validated 2026-06-09**: `bringup.launch.py` runs `turtlebot4_ignition` + `slam.launch.py` + `nav2.launch.py` + `apriltag_ros` (on OAK-D) + RViz (`sar.rviz`, Frame Rate=10). **Headless validation**: 60 nodes alive, topics `/scan` `/odom` `/map` `/detections` `/oakd/rgb/preview/image_raw` `/tf` publishing, **single** Ignition instance. `exploration.launch.py` runs `explore_lite` (end-to-end validation in L16). |
 | L16     |   TODO   | BT runner executes the mission, `victim_registry` logs detections, first end-to-end run                  |
 | L17     |   TODO   | `information_gain` implemented, benchmarks recorded, plots ready, report at 70 %                         |
 | L18     |   TODO   | Live demo (10 min) + report delivered (≤ 10 pages, PDF)                                                  |
@@ -416,7 +423,7 @@ python3 experiments/plot_results.py --runs experiments/runs/
 | AprilTag poorly detected (Gazebo lighting)        | Low         | Medium   | Test in L14, fallback to colored cylinders + HSV via OpenCV         |
 | BT too complex, long debug                        | Medium      | Medium   | Keep tree minimal first, Groot2 for debug, isolated node tests      |
 | WSL2 + Gazebo GUI unstable                        | Low         | Medium   | `headless:=true` validated early + backup demo video                |
-| Time wasted on Gazebo world                       | Medium      | Low      | Time-box to 3 h max in L14, fallback `turtlebot3_house`             |
+| Time wasted on Ignition world                     | Medium      | Low      | Time-box to 3 h max in L14, fallback `warehouse.sdf` (TB4 default)  |
 | MPC/RRT attempted before baseline works           | Medium      | High     | Discipline: **no bonus until baseline passes**                      |
 | Absent member, uneven workload                    | —           | —        | Systematic pair-programming, R1 as integration fallback             |
 | Conda interferes with `colcon` (seen on this host) | High       | Low      | `conda deactivate` before build; documented in this README          |

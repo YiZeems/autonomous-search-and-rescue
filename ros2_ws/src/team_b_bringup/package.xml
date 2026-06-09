@@ -21,8 +21,12 @@
   <exec_depend>nav2_bringup</exec_depend>
   <exec_depend>slam_toolbox</exec_depend>
   <exec_depend>rviz2</exec_depend>
-  <exec_depend>gazebo_ros</exec_depend>
-  <exec_depend>turtlebot3_gazebo</exec_depend>
+  <exec_depend>turtlebot4_simulator</exec_depend>
+  <exec_depend>turtlebot4_ignition_bringup</exec_depend>
+  <exec_depend>turtlebot4_navigation</exec_depend>
+  <exec_depend>turtlebot4_msgs</exec_depend>
+  <exec_depend>irobot_create_msgs</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
   <exec_depend>apriltag_ros</exec_depend>
   <exec_depend>explore_lite</exec_depend>
   <exec_depend>team_b_world</exec_depend>

@@ -6,15 +6,15 @@
 
 ```mermaid
 flowchart LR
-    subgraph SIM["Gazebo Classic — disaster_world.world"]
-        ROBOT[TurtleBot3 Waffle Pi]
+    subgraph SIM["Ignition Gazebo Fortress — warehouse / depot / maze (.sdf)"]
+        ROBOT[TurtleBot 4 — Create 3 + RPLIDAR A1M8 + OAK-D]
         TAGS[(AprilTags 36h11)]
     end
 
     ROBOT -- /scan --> SLAM
     ROBOT -- /odom --> SLAM
-    ROBOT -- /camera/image_raw --> APRIL[apriltag_ros]
-    ROBOT -- /camera/camera_info --> APRIL
+    ROBOT -- /oakd/rgb/preview/image_raw --> APRIL[apriltag_ros]
+    ROBOT -- /oakd/rgb/preview/camera_info --> APRIL
 
     SLAM[slam_toolbox<br/>async] -- /map --> EXPLORE
     SLAM -- TF map→odom --> TF[(TF tree)]
@@ -87,14 +87,14 @@ Nodes BT custom (paquet `team_b_decision`) :
 ## 4. TF tree cible
 
 ```
-map ──> odom ──> base_footprint ──> base_link ──┬──> base_scan
+map ──> odom ──> base_footprint ──> base_link ──┬──> rplidar_link
                                                 └──> camera_link ──> camera_rgb_optical_frame
                                                                        └──> tag_<id>  (publié par apriltag_ros)
 ```
 
 - `map → odom` publié par **`slam_toolbox`**.
 - `odom → base_footprint` publié par `robot_state_publisher` (Gazebo plugin).
-- `base_link → camera_link` issu de l'URDF TurtleBot3 Waffle Pi.
+- `base_link → oakd_rgb_camera_frame` issu de l'URDF TurtleBot 4 (Create 3 + OAK-D).
 - `camera_link → tag_<id>` publié par **`apriltag_ros`**.
 
 ## 5. Topics & services principaux
@@ -103,8 +103,8 @@ map ──> odom ──> base_footprint ──> base_link ──┬──> base_
 | ------------------------------------ | -------------------------------------------- | ------------------- | -------------------- |
 | `/scan`                              | `sensor_msgs/LaserScan`                      | Gazebo plugin       | `slam_toolbox`       |
 | `/odom`                              | `nav_msgs/Odometry`                          | Gazebo plugin       | `slam_toolbox`, Nav2 |
-| `/camera/image_raw`                  | `sensor_msgs/Image`                          | Gazebo plugin       | `apriltag_ros`       |
-| `/camera/camera_info`                | `sensor_msgs/CameraInfo`                     | Gazebo plugin       | `apriltag_ros`       |
+| `/oakd/rgb/preview/image_raw`        | `sensor_msgs/Image`                          | Ignition / ros_gz_bridge | `apriltag_ros`   |
+| `/oakd/rgb/preview/camera_info`      | `sensor_msgs/CameraInfo`                     | Ignition / ros_gz_bridge | `apriltag_ros`   |
 | `/map`                               | `nav_msgs/OccupancyGrid`                     | `slam_toolbox`      | `team_b_exploration`, `coverage_evaluator`, Nav2 |
 | `/detections`                        | `apriltag_msgs/AprilTagDetectionArray`       | `apriltag_ros`      | `victim_registry`    |
 | `/coverage`                          | `std_msgs/Float32`                           | `coverage_evaluator`| BT (`CoverageReached`) |
@@ -118,8 +118,8 @@ map ──> odom ──> base_footprint ──> base_link ──┬──> base_
 | --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Distribution ROS 2    | **Humble** (LTS)                                   | Confirmée `rosversion -d` ; stack Nav2/slam_toolbox mature                      |
 | OS                    | Ubuntu 22.04 jammy (WSL2 chez Julien)              | Compatible ROS 2 Humble                                                         |
-| Simulateur            | **Gazebo Classic 11**                              | Plus stable que Fortress sur WSL ; doc Nav2/TurtleBot3 alignée                  |
-| Robot                 | **TurtleBot3 Waffle Pi**                           | LIDAR 2D **+ caméra RGB** (requise pour AprilTag)                               |
+| Simulateur            | **Ignition Gazebo Fortress** (migration 2026-06-08) | Stack `turtlebot4_simulator` officielle ; meilleur support OAK-D ; doc TB4 alignée |
+| Robot                 | **TurtleBot 4 standard** (Create 3 + RPLIDAR A1M8 + OAK-D-Pro) | LIDAR 2D + **caméra RGB-D OAK-D** (requise pour AprilTag) ; migration depuis TB3 Waffle Pi le 2026-06-08 |
 | SLAM                  | **`slam_toolbox`** mode `async`                    | Loop closure natif (CM7), intégration Nav2                                      |
 | Navigation            | **Nav2** complet                                   | Planner + controller + recoveries + BT navigator                                |
 | Décision              | **BehaviorTree.CPP** via `nav2_behavior_tree`      | Réutilise l'infra BT existante ; Groot2 pour debug ; **interdiction des FSM**   |

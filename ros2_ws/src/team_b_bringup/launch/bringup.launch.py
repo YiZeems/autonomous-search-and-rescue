@@ -1,58 +1,51 @@
-"""Single entry-point launch file for the IA712 Project B Search & Rescue stack.
+"""Single entry-point launch file — TurtleBot 4 stack (Ignition Gazebo Fortress).
 
-L15: launches Gazebo (turtlebot3_house by default) + TurtleBot3 Waffle Pi +
-slam_toolbox (async mapping, loop closure tuned) + Nav2 navigation servers +
-apriltag_ros detector + RViz.
+L15 (TB4): launches the TurtleBot 4 Ignition simulation (Create 3 base +
+RPLIDAR + OAK-D camera) + slam_toolbox via turtlebot4_navigation + Nav2 via
+turtlebot4_navigation + apriltag_ros detector + RViz.
 
-Exploration is launched separately (see exploration.launch.py) so each brick
-can be validated in isolation per the L15 deliverable.
+Exploration is launched separately (see exploration.launch.py).
 
 Usage:
     # Full simulation stack
     ros2 launch team_b_bringup bringup.launch.py
-    # Headless (no Gazebo GUI, RViz still on)
+    # Headless Ignition (no GUI)
     ros2 launch team_b_bringup bringup.launch.py headless:=true
-    # Only Gazebo + SLAM (turn off nav2 and apriltag for SLAM-only testing)
+    # Different world (depot, maze, warehouse...)
+    ros2 launch team_b_bringup bringup.launch.py world:=maze
+    # Only sim + SLAM (turn off Nav2 and AprilTag)
     ros2 launch team_b_bringup bringup.launch.py launch_nav2:=false launch_apriltag:=false
-"""
-import os
 
-from ament_index_python.packages import get_package_share_directory
+Prerequisites (apt — see README "Prérequis"):
+    sudo apt install ros-humble-turtlebot4-simulator \
+                     ros-humble-turtlebot4-navigation \
+                     ros-humble-turtlebot4-msgs \
+                     ros-humble-apriltag-ros \
+                     ignition-fortress
+"""
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
     IncludeLaunchDescription,
     LogInfo,
-    SetEnvironmentVariable,
 )
-from launch.conditions import IfCondition, UnlessCondition
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
 
-# IMPORTANT: TURTLEBOT3_MODEL is read at module-import time by the bundled
-# turtlebot3_gazebo launch files (robot_state_publisher.launch.py and
-# spawn_turtlebot3.launch.py both do `os.environ['TURTLEBOT3_MODEL']` inside
-# their generate_launch_description). A SetEnvironmentVariable action would
-# fire too late — so we set it here, before any IncludeLaunchDescription
-# triggers their generate().
-os.environ.setdefault('TURTLEBOT3_MODEL', 'waffle_pi')
-
 
 def generate_launch_description() -> LaunchDescription:
     pkg_bringup = FindPackageShare('team_b_bringup')
-    pkg_tb3_gazebo = FindPackageShare('turtlebot3_gazebo')
-    pkg_slam_toolbox = FindPackageShare('slam_toolbox')
+    pkg_tb4_ignition = FindPackageShare('turtlebot4_ignition_bringup')
+    pkg_tb4_navigation = FindPackageShare('turtlebot4_navigation')
     pkg_nav2_bringup = FindPackageShare('nav2_bringup')
-    pkg_gazebo_ros = FindPackageShare('gazebo_ros')
 
-    # Launch configurations (kept as substitutions so they propagate)
     use_sim_time = LaunchConfiguration('use_sim_time')
     headless = LaunchConfiguration('headless')
     world = LaunchConfiguration('world')
-    x_pose = LaunchConfiguration('x_pose')
-    y_pose = LaunchConfiguration('y_pose')
+    model = LaunchConfiguration('model')
     launch_rviz = LaunchConfiguration('launch_rviz')
     launch_slam = LaunchConfiguration('launch_slam')
     launch_nav2 = LaunchConfiguration('launch_nav2')
@@ -62,62 +55,50 @@ def generate_launch_description() -> LaunchDescription:
 
     slam_params = PathJoinSubstitution([pkg_bringup, 'config', 'slam_params.yaml'])
     apriltag_params = PathJoinSubstitution([pkg_bringup, 'config', 'apriltag_tags.yaml'])
+    rviz_config = PathJoinSubstitution([pkg_bringup, 'rviz', 'sar.rviz'])
+    nav2_params = PathJoinSubstitution([pkg_nav2_bringup, 'params', 'nav2_params.yaml'])
 
-    # Default RViz: nav2_bringup default view (map, scan, costmaps, robot model)
-    rviz_config = PathJoinSubstitution(
-        [pkg_nav2_bringup, 'rviz', 'nav2_default_view.rviz']
-    )
-
-    # -- Gazebo: split gzserver / gzclient so headless works
-    gzserver = IncludeLaunchDescription(
+    # -- 1) TurtleBot 4 + Ignition Gazebo Fortress (Create 3 + RPLIDAR + OAK-D)
+    tb4_ignition = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_gazebo_ros, 'launch', 'gzserver.launch.py'])
+            PathJoinSubstitution([pkg_tb4_ignition, 'launch', 'turtlebot4_ignition.launch.py'])
         ),
-        launch_arguments={'world': world}.items(),
-    )
-    gzclient = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_gazebo_ros, 'launch', 'gzclient.launch.py'])
-        ),
-        condition=UnlessCondition(headless),
-    )
-
-    # -- TurtleBot3: robot_state_publisher + spawn
-    robot_state_publisher = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_tb3_gazebo, 'launch', 'robot_state_publisher.launch.py'])
-        ),
-        launch_arguments={'use_sim_time': use_sim_time}.items(),
-    )
-    spawn_tb3 = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_tb3_gazebo, 'launch', 'spawn_turtlebot3.launch.py'])
-        ),
-        launch_arguments={'x_pose': x_pose, 'y_pose': y_pose}.items(),
+        launch_arguments={
+            'world': world,
+            'model': model,
+            'rviz': 'false',           # we launch our own RViz below
+            'slam': 'false',           # we launch our own SLAM below
+            'nav2': 'false',           # we launch our own Nav2 below
+            'localization': 'false',
+            'headless': headless,
+        }.items(),
     )
 
-    # -- SLAM Toolbox (async, with our loop-closure-tuned params)
+    # -- 2) SLAM Toolbox (async, loop-closure tuned) via turtlebot4_navigation wrapper
     slam = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_slam_toolbox, 'launch', 'online_async_launch.py'])
+            PathJoinSubstitution([pkg_tb4_navigation, 'launch', 'slam.launch.py'])
         ),
         launch_arguments={
             'use_sim_time': use_sim_time,
-            'slam_params_file': slam_params,
+            'params': slam_params,
         }.items(),
         condition=IfCondition(launch_slam),
     )
 
-    # -- Nav2 navigation servers (no map_server / amcl — slam_toolbox provides /map)
+    # -- 3) Nav2 navigation servers (TB4 wrapper handles odom/scan remaps)
     nav2 = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            PathJoinSubstitution([pkg_nav2_bringup, 'launch', 'navigation_launch.py'])
+            PathJoinSubstitution([pkg_tb4_navigation, 'launch', 'nav2.launch.py'])
         ),
-        launch_arguments={'use_sim_time': use_sim_time}.items(),
+        launch_arguments={
+            'use_sim_time': use_sim_time,
+            'params_file': nav2_params,
+        }.items(),
         condition=IfCondition(launch_nav2),
     )
 
-    # -- AprilTag detector (camera_36h11)
+    # -- 4) AprilTag detector — OAK-D RGB camera (rectified preview stream)
     apriltag = Node(
         package='apriltag_ros',
         executable='apriltag_node',
@@ -125,13 +106,13 @@ def generate_launch_description() -> LaunchDescription:
         output='screen',
         parameters=[apriltag_params, {'use_sim_time': use_sim_time}],
         remappings=[
-            ('image_rect', '/camera/image_raw'),
-            ('camera_info', '/camera/camera_info'),
+            ('image_rect', '/oakd/rgb/preview/image_raw'),
+            ('camera_info', '/oakd/rgb/preview/camera_info'),
         ],
         condition=IfCondition(launch_apriltag),
     )
 
-    # -- RViz
+    # -- 5) RViz with our project config (sar.rviz: Frame Rate clamped to 10 for perf)
     rviz = Node(
         package='rviz2',
         executable='rviz2',
@@ -141,44 +122,36 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(launch_rviz),
     )
 
-    # Default world: turtlebot3_house (bundled with ros-humble-turtlebot3-gazebo)
-    default_world = os.path.join(
-        get_package_share_directory('turtlebot3_gazebo'),
-        'worlds', 'turtlebot3_house.world'
-    )
-
     return LaunchDescription([
         # ----- Args -----
         DeclareLaunchArgument('use_sim_time', default_value='true',
-                              description='Use Gazebo /clock for all nodes.'),
+                              description='Use the Ignition /clock for all nodes.'),
         DeclareLaunchArgument('headless', default_value='false',
-                              description='Run Gazebo without GUI (CI/benchmark).'),
-        DeclareLaunchArgument('world', default_value=default_world,
-                              description='Path to the .world file Gazebo loads.'),
-        DeclareLaunchArgument('x_pose', default_value='-2.0',
-                              description='Initial x of TurtleBot3 spawn.'),
-        DeclareLaunchArgument('y_pose', default_value='-0.5',
-                              description='Initial y of TurtleBot3 spawn.'),
+                              description='Run Ignition without GUI (CI/benchmark).'),
+        DeclareLaunchArgument('world', default_value='warehouse',
+                              description='Ignition world name (warehouse | depot | maze).'),
+        DeclareLaunchArgument('model', default_value='standard',
+                              description='TurtleBot 4 model variant (standard | lite).'),
         DeclareLaunchArgument('launch_rviz', default_value='true',
                               description='Launch RViz2.'),
         DeclareLaunchArgument('launch_slam', default_value='true',
-                              description='Launch slam_toolbox async mapping.'),
+                              description='Launch slam_toolbox (via turtlebot4_navigation).'),
         DeclareLaunchArgument('launch_nav2', default_value='true',
-                              description='Launch Nav2 navigation servers.'),
+                              description='Launch Nav2 (via turtlebot4_navigation).'),
         DeclareLaunchArgument('launch_apriltag', default_value='true',
-                              description='Launch apriltag_ros detector.'),
+                              description='Launch apriltag_ros detector on OAK-D stream.'),
         DeclareLaunchArgument('algo', default_value='greedy',
                               choices=['greedy', 'info_gain'],
-                              description='Exploration algorithm tag (consumed by exploration.launch.py).'),
+                              description='Exploration algo tag (consumed by exploration.launch.py).'),
         DeclareLaunchArgument('run_id', default_value='0',
                               description='Run identifier for benchmark logs.'),
 
         # ----- Actions -----
-        LogInfo(msg=['[team_b_bringup] L15 bringup — algo=', algo, ' run_id=', run_id, ' headless=', headless]),
-        gzserver,
-        gzclient,
-        robot_state_publisher,
-        spawn_tb3,
+        LogInfo(msg=['[team_b_bringup] L15 TB4 bringup — world=', world,
+                     ' model=', model,
+                     ' algo=', algo,
+                     ' headless=', headless]),
+        tb4_ignition,
         slam,
         nav2,
         apriltag,
