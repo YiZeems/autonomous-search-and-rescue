@@ -24,7 +24,7 @@ _PATTERNS=(
   waypoint_follower frontier_explorer
   robot_state_publisher static_transform_publisher tf2_echo
   tf_relay cmd_vel_relay scan_throttle
-  coverage_evaluator result_exporter rviz_marker bt_supervisor bt_runner victim_registry
+  coverage_evaluator result_exporter rviz_marker bt_supervisor bt_runner victim_registry apriltag_node
   mock_map_publisher mock_coverage mock_victim
   turtlebot4_spawn turtlebot4_ignition turtlebot4_node turtlebot4_viz
   irobot_create create3 wheel_status ui_mgr sensors_node pose_republisher

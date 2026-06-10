@@ -11,8 +11,8 @@
 #     /turtlebot4/diffdrive_controller/cmd_vel_unstamped
 #   - NFS local_setup.bash failure: workspace sourced via AMENT_PREFIX_PATH +
 #     PYTHONPATH (build dir for egg-info) instead of colcon overlay script
-#   - Nav2 recovery (spin/backup) freezes Ignition under load → disabled,
-#     only "wait" recovery kept
+#   - Nav2 recovery (spin/backup/drive_on_heading) RE-ENABLED so a wedged robot
+#     can free itself (was wait-only; see nav2_params_tb4.yaml behavior_server)
 #
 # Usage:
 #   ./scripts/run.sh demo-tb4                       # standard model, maze world
@@ -137,11 +137,11 @@ _cleanup() {
         "${SPAWN_PID:-}" "${BRIDGE_PID:-}" "${GUI_PID:-}" \
         "${IGN_PID:-}" "${RSP_PID:-}" \
         "${COV_PID:-}" "${EXP_PID:-}" "${MRK_PID:-}" \
-        "${VREG_PID:-}" "${BT_PID:-}"; do
+        "${VREG_PID:-}" "${BT_PID:-}" "${APRILTAG_PID:-}" "${CAM_STF_PID:-}"; do
         [ -n "${pid}" ] && kill "${pid}" 2>/dev/null || true
     done
     sleep 2
-    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|frontier_explorer|bt_runner|victim_registry|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
+    pkill -9 -f "ign gazebo|ign_gazebo_server|async_slam_toolbox|rviz2|tf_relay|cmd_vel_relay|scan_throttle|waypoint_follower|frontier_explorer|bt_runner|victim_registry|apriltag_node|parameter_bridge|robot_state_publisher|static_transform_publisher|coverage_evaluator|result_exporter|rviz_marker|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother" 2>/dev/null || true
     # turtlebot4_spawn.launch.py pulls in dozens of create3/turtlebot4 nodes
     # (wheel_status, hazards, kidnap_estimator, motion_control, sensors, ui_mgr,
     # ir_intensity, ros_gz bridges, ruby ign clients…). They are NOT children of
@@ -271,6 +271,14 @@ done
 [ -n "${LIDAR_IGN}" ] || LIDAR_IGN="/world/${WORLD}/model/${NAMESPACE}/link/rplidar_link/sensor/rplidar/scan"
 CAM_IGN="$(ign topic -l 2>/dev/null | grep -E '/rgbd_camera/image$' | head -1 || true)"
 [ -n "${CAM_IGN}" ] || CAM_IGN="/world/${WORLD}/model/${NAMESPACE}/link/oakd_rgb_camera_frame/sensor/rgbd_camera/image"
+# camera_info sits next to the image topic. apriltag_ros needs it to estimate the
+# tag pose (otherwise no camera→tag TF, no victim registration).
+CAM_INFO_IGN="${CAM_IGN%/image}/camera_info"
+# Camera optical frame (scoped Ignition sensor name) — same derivation as SCAN_FRAME.
+# apriltag publishes victim_<id> relative to this frame; a static TF (step 5b)
+# connects it to the robot's URDF optical frame so victim_registry can reach map.
+CAM_FRAME="$(printf '%s' "${CAM_IGN}" | sed -E 's#^/world/[^/]+/model/##; s#/link/#/#; s#/sensor/#/#; s#/image$##')"
+[ -n "${CAM_FRAME}" ] || CAM_FRAME="${NAMESPACE}/oakd_rgb_camera_frame/rgbd_camera"
 # Derive the scan's actual frame_id from the Ignition topic path. The bridged
 # LaserScan keeps Ignition's frame_id, which is the scoped sensor name:
 #   /world/<w>/model/<a>/<b>/link/rplidar_link/sensor/rplidar/scan
@@ -291,8 +299,10 @@ ros2 run ros_gz_bridge parameter_bridge \
 
 ros2 run ros_gz_bridge parameter_bridge \
     "${CAM_IGN}@sensor_msgs/msg/Image[ignition.msgs.Image" \
+    "${CAM_INFO_IGN}@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo" \
     --ros-args \
     -r "${CAM_IGN}:=/camera/image_raw" \
+    -r "${CAM_INFO_IGN}:=/camera/camera_info" \
     >"${LOGDIR}/cam.log" 2>&1 &
 
 BRIDGE_PID=$!
@@ -437,16 +447,66 @@ kill -0 "${RVIZ_PID}" 2>/dev/null \
     && echo "  RViz2 PID=${RVIZ_PID} VIVANT" \
     || echo "  [WARN] RViz2 mort — voir ${LOGDIR}/rviz2.log"
 
-# ── ÉTAPE 7b : Perception (victim registry, AprilTag→map) + Behavior Tree.
-#    Tous deux PASSIFS (ne pilotent pas le robot) — sûrs à laisser ON.
+# ── ÉTAPE 7b : Perception (AprilTags + registry + apriltag_ros) + Behavior Tree.
+#    Tous PASSIFS (ne pilotent pas le robot) — sûrs à laisser ON.
+#    IA712_APRILTAG=0         -> ne spawn pas les tags ni apriltag_ros
 #    IA712_VICTIM_REGISTRY=0  -> désactive le registre de victimes
 #    IA712_BT=0               -> désactive le superviseur Behavior Tree (BT.CPP)
 echo "[7b/8] Perception + Behavior Tree (passifs)..."
 
+# ---- AprilTag "victimes" : spawn des 5 tags + TF caméra + apriltag_ros ----
+# NOTE: la détection AprilTag dans Ignition dépend de frames namespacés (comme le
+# lidar, cf. ERRORS_AND_FIXES #26) ; les POSITIONS des tags et la TF caméra
+# peuvent demander un ajustement après une passe visuelle dans Gazebo. Si rien
+# n'est détecté, victim_registry publie simplement 0 victime (comportement
+# d'origine) — ça ne casse rien.
+if [ "${IA712_APRILTAG:-1}" = "1" ]; then
+    TAG_MODELS_DIR="${WS_INSTALL}/rescue_world/share/rescue_world/models"
+    if [ -d "${TAG_MODELS_DIR}/apriltag_36h11_00" ]; then
+        echo "  Spawn des AprilTags (victim_0..4) dans le monde..."
+        # (x  y  z  yaw) — z≈hauteur OAK-D ; positions à ajuster selon le monde.
+        #   panneau fin en Y → yaw oriente la face du tag.
+        _TAG_POSES=( "1.6 0.0 0.25 1.5708" "5.0 -3.0 0.25 3.1416" \
+                     "-4.0 -3.0 0.25 0.0" "-3.0 5.0 0.25 -1.5708" "3.0 6.0 0.25 3.1416" )
+        for _i in 0 1 2 3 4; do
+            read -r _x _y _z _Y <<< "${_TAG_POSES[$_i]}"
+            ros2 run ros_gz_sim create \
+                -world "${WORLD}" \
+                -file "${TAG_MODELS_DIR}/apriltag_36h11_0${_i}/model.sdf" \
+                -name "victim_${_i}" -x "${_x}" -y "${_y}" -z "${_z}" -Y "${_Y}" \
+                >>"${LOGDIR}/tag_spawn.log" 2>&1 || true
+        done
+        # Static TF: relie la frame caméra optique du robot (URDF) à la frame
+        # caméra scopée d'Ignition, pour que la TF apriltag camera→victim_<id>
+        # soit atteignable depuis map (sinon victim_registry ne résout pas).
+        ros2 run tf2_ros static_transform_publisher \
+            --x 0 --y 0 --z 0 --roll 0 --pitch 0 --yaw 0 \
+            --frame-id oakd_rgb_camera_optical_frame --child-frame-id "${CAM_FRAME}" \
+            --ros-args -p use_sim_time:=true \
+            >"${LOGDIR}/cam_stf.log" 2>&1 &
+        CAM_STF_PID=$!
+        # apriltag_ros : /camera/image_raw + /camera/camera_info -> /detections + TF
+        ros2 run apriltag_ros apriltag_node --ros-args \
+            --params-file "${WS_INSTALL}/rescue_bringup/share/rescue_bringup/config/apriltag_tags.yaml" \
+            -p use_sim_time:=true \
+            -r image_rect:=/camera/image_raw \
+            -r camera_info:=/camera/camera_info \
+            >"${LOGDIR}/apriltag.log" 2>&1 &
+        APRILTAG_PID=$!
+        sleep 1
+        kill -0 "${APRILTAG_PID}" 2>/dev/null \
+            && echo "  apriltag_node PID=${APRILTAG_PID} VIVANT (tag36h11 → /detections)" \
+            || echo "  [WARN] apriltag_node mort — voir ${LOGDIR}/apriltag.log"
+    else
+        echo "  [WARN] modèles AprilTag absents (${TAG_MODELS_DIR}) — lance d'abord:"
+        echo "         python3 scripts/generate_apriltag_models.py && ./scripts/run.sh build"
+    fi
+fi
+
 if [ "${IA712_VICTIM_REGISTRY:-1}" = "1" ]; then
     # AprilTag→map projection via TF2 + dedup + persistance results/victims.json.
-    # Sans apriltag_ros ni tags dans le monde, publie un /victims_map vide (0
-    # victime) — alimente result_exporter sans rien casser. Même PYTHONPATH NFS
+    # Reçoit /detections d'apriltag_ros (étape AprilTag ci-dessus). Sans tags vus,
+    # publie /victims_map vide. Même PYTHONPATH NFS workaround que les nœuds résultats.
     # workaround que les nœuds résultats ci-dessus.
     PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" \
         python3 -c "from rescue_robot.detection.victim_registry_node import main; main()" \
