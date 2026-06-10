@@ -1,0 +1,12 @@
+<root BTCPP_format="4">
+  <BehaviorTree ID="SearchAndRescue">
+    <Sequence name="main_sequence">
+      <CheckSystemReady/>
+      <StartMapping/>
+      <ExploreArea/>
+      <CheckCoverage threshold="0.90"/>
+      <ExportVictims/>
+      <SaveResults/>
+    </Sequence>
+  </BehaviorTree>
+</root>

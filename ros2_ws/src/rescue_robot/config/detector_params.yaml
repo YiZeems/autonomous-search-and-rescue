@@ -1,0 +1,10 @@
+victim_detector_node:
+  ros__parameters:
+    detection_mode: "color"
+    camera_topic: "/camera/image_raw"
+    camera_info_topic: "/camera/camera_info"
+    output_topic: "/victims_map"
+    map_frame: "map"
+    camera_frame: "camera_link"
+    target_color: "red"
+    duplicate_distance_threshold_m: 0.5

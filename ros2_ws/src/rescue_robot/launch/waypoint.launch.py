@@ -1,0 +1,64 @@
+"""Launch the waypoint follower — sends a predefined path to Nav2.
+
+Requires Nav2 to be running (start simulation + navigation first).
+
+Usage:
+    # Default path (turtlebot3_house sweep, 8 waypoints)
+    ros2 launch rescue_robot waypoint.launch.py
+
+    # Custom waypoints file
+    ros2 launch rescue_robot waypoint.launch.py \\
+        waypoints_file:=/abs/path/to/waypoints.yaml
+
+    # Loop indefinitely
+    ros2 launch rescue_robot waypoint.launch.py loop:=true
+
+    # One-shot script shortcut
+    ./scripts/run.sh waypoint
+"""
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
+
+
+def generate_launch_description():
+    default_waypoints = PathJoinSubstitution(
+        [FindPackageShare("rescue_robot"), "config", "waypoints.yaml"]
+    )
+
+    return LaunchDescription([
+        DeclareLaunchArgument(
+            "waypoints_file",
+            default_value=default_waypoints,
+            description="Absolute path to a waypoints YAML file.",
+        ),
+        DeclareLaunchArgument(
+            "loop",
+            default_value="false",
+            description="Loop the waypoint sequence indefinitely.",
+        ),
+        DeclareLaunchArgument(
+            "goal_timeout_sec",
+            default_value="60.0",
+            description="Seconds to wait for each NavigateToPose goal.",
+        ),
+        DeclareLaunchArgument(
+            "use_sim_time",
+            default_value="true",
+            description="Use Gazebo simulation clock.",
+        ),
+        Node(
+            package="rescue_robot",
+            executable="waypoint_follower_node",
+            name="waypoint_follower_node",
+            output="screen",
+            parameters=[{
+                "waypoints_file": LaunchConfiguration("waypoints_file"),
+                "loop": LaunchConfiguration("loop"),
+                "goal_timeout_sec": LaunchConfiguration("goal_timeout_sec"),
+                "use_sim_time": LaunchConfiguration("use_sim_time"),
+            }],
+        ),
+    ])

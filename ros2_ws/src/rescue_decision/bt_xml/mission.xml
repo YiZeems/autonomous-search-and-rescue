@@ -1,0 +1,29 @@
+<!--
+  Search & Rescue mission tree (BehaviorTree.CPP v3, loadable in Groot).
+
+  Structure: a ReactiveSequence ticked once per runner cycle (bt_runner spins
+  the executor between ticks, so /map and /coverage stay fresh). ReactiveSequence
+  re-evaluates ALL children every tick from the start — the correct shape for
+  polling async conditions. Do NOT wrap conditions in RetryUntilSuccessful: in
+  BT.CPP v3 a Retry decorator with num_attempts=-1 busy-loops inside a single
+  tick when its synchronous child returns FAILURE, starving the ROS executor so
+  no message is ever received.
+
+  Flow each tick:
+    1. WaitForMap        -> FAILURE until SLAM publishes /map  (whole seq fails, retried next tick)
+    2. CoverageReached   -> FAILURE until /coverage >= 0.90    (idem)
+    3. ReportVictims      -> always SUCCESS (surfaces the live victim count in Groot)
+    4. PublishMissionDone -> latches /mission_done = true, returns SUCCESS
+  When all four return SUCCESS the ReactiveSequence returns SUCCESS and the
+  runner stops ticking and idles (keeping /mission_done latched).
+-->
+<root main_tree_to_execute="Mission">
+  <BehaviorTree ID="Mission">
+    <ReactiveSequence name="search_and_rescue_mission">
+      <WaitForMap name="wait_for_slam_map"/>
+      <CoverageReached name="coverage_90" threshold="0.90"/>
+      <VictimsFound name="report_victims" min_count="0"/>
+      <PublishMissionDone name="finalize"/>
+    </ReactiveSequence>
+  </BehaviorTree>
+</root>

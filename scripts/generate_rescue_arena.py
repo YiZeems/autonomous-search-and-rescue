@@ -1,0 +1,183 @@
+#!/usr/bin/env python3
+"""Generate a search-and-rescue Ignition Gazebo world (rescue_arena.sdf).
+
+Design goals for the IA712 project:
+  - 12x12 m "collapsed building": 4 rooms + a cross corridor with doorways, so
+    the robot has somewhere to explore and SLAM has real walls to map.
+  - Built ONLY from box/cylinder primitives — no external meshes. This renders
+    correctly under software GL (Parallels llvmpipe) AND is detected by the
+    gpu_lidar, unlike mesh-heavy worlds (see docs/ERRORS_AND_FIXES.md #10).
+  - Origin (0,0) is kept clear (central corridor) so the robot never spawns
+    embedded in a wall.
+  - Scattered "rubble" boxes (obstacles) + red "victim" cylinders (targets for
+    the victim detector / markers in RViz).
+  - physics block + shadows OFF (software-renderer stability).
+
+Run:  python3 scripts/generate_rescue_arena.py
+Out:  ros2_ws/src/rescue_world/worlds/rescue_arena.sdf
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+WALL_T = 0.15      # wall thickness (m)
+WALL_H = 1.0       # wall height (m)
+A = 6.0            # half-arena size (m) -> 12x12 m
+
+# Axis-aligned wall segments as (x1, y1, x2, y2). Gaps between segments are
+# doorways. The band y in [-2, 2] is left open as the main corridor (origin).
+WALLS = [
+    # --- outer walls ---
+    (-A,  A,  A,  A),     # north
+    (-A, -A,  A, -A),     # south
+    ( A, -A,  A,  A),     # east
+    (-A, -A, -A,  A),     # west
+    # --- divider at y=2 (north rooms / corridor), doorways near x=-3 and x=+3 ---
+    (-A, 2.0, -3.5, 2.0),
+    (-2.5, 2.0, 2.5, 2.0),
+    (3.5, 2.0, A, 2.0),
+    # --- divider at y=-2 (south rooms / corridor), doorways near x=-0.5 and x=+0.5 ---
+    (-A, -2.0, -1.0, -2.0),
+    (1.0, -2.0, A, -2.0),
+    # --- vertical split of the north band (x=0), doorway at y in [3.5, 4.5] ---
+    (0.0, 2.0, 0.0, 3.5),
+    (0.0, 4.5, 0.0, A),
+    # --- vertical split of the south band (x=0), doorway at y in [-4.5, -3.5] ---
+    (0.0, -A, 0.0, -4.5),
+    (0.0, -3.5, 0.0, -2.0),
+]
+
+# Rubble obstacles: (x, y, size) cubes.
+RUBBLE = [
+    (3.6, 4.2, 0.45),
+    (-3.8, 4.0, 0.55),
+    (-3.6, -4.2, 0.35),
+    (3.9, -3.8, 0.4),
+    (-4.6, 0.0, 0.3),
+]
+
+# Victims: red cylinders (x, y) — one per room (NE, SW, NW, SE).
+VICTIMS = [
+    (4.6, 4.6),
+    (-4.6, -4.6),
+    (-4.6, 4.6),
+    (4.6, -4.6),
+]
+
+
+def _box_link(name: str, cx: float, cy: float, cz: float,
+              sx: float, sy: float, sz: float, rgba: str) -> str:
+    return f"""
+        <model name='{name}'>
+            <static>1</static>
+            <pose>{cx:.3f} {cy:.3f} {cz:.3f} 0 0 0</pose>
+            <link name='link'>
+                <collision name='collision'>
+                    <geometry><box><size>{sx:.3f} {sy:.3f} {sz:.3f}</size></box></geometry>
+                </collision>
+                <visual name='visual'>
+                    <geometry><box><size>{sx:.3f} {sy:.3f} {sz:.3f}</size></box></geometry>
+                    <material>
+                        <ambient>{rgba}</ambient><diffuse>{rgba}</diffuse>
+                    </material>
+                </visual>
+            </link>
+        </model>"""
+
+
+def _cylinder_link(name: str, cx: float, cy: float, radius: float,
+                   height: float, rgba: str) -> str:
+    return f"""
+        <model name='{name}'>
+            <static>1</static>
+            <pose>{cx:.3f} {cy:.3f} {height/2:.3f} 0 0 0</pose>
+            <link name='link'>
+                <collision name='collision'>
+                    <geometry><cylinder><radius>{radius:.3f}</radius><length>{height:.3f}</length></cylinder></geometry>
+                </collision>
+                <visual name='visual'>
+                    <geometry><cylinder><radius>{radius:.3f}</radius><length>{height:.3f}</length></cylinder></geometry>
+                    <material>
+                        <ambient>{rgba}</ambient><diffuse>{rgba}</diffuse>
+                    </material>
+                </visual>
+            </link>
+        </model>"""
+
+
+def _wall_model(idx: int, x1: float, y1: float, x2: float, y2: float) -> str:
+    cx, cy = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+    sx = abs(x2 - x1) or WALL_T
+    sy = abs(y2 - y1) or WALL_T
+    # extend by thickness so corners overlap cleanly
+    if sx > WALL_T:
+        sx += WALL_T
+    if sy > WALL_T:
+        sy += WALL_T
+    return _box_link(f"wall_{idx}", cx, cy, WALL_H / 2.0, sx, sy, WALL_H, "0.5 0.5 0.55 1")
+
+
+def build_world() -> str:
+    parts = []
+    for i, (x1, y1, x2, y2) in enumerate(WALLS):
+        parts.append(_wall_model(i, x1, y1, x2, y2))
+    for i, (x, y, s) in enumerate(RUBBLE):
+        parts.append(_box_link(f"rubble_{i}", x, y, s / 2.0, s, s, s, "0.45 0.32 0.2 1"))
+    for i, (x, y) in enumerate(VICTIMS):
+        parts.append(_cylinder_link(f"victim_{i}", x, y, 0.18, 0.4, "0.85 0.1 0.1 1"))
+    bodies = "".join(parts)
+    return f"""<?xml version="1.0"?>
+<!-- Auto-generated by scripts/generate_rescue_arena.py — do not edit by hand. -->
+<sdf version='1.8'>
+    <world name='rescue_arena'>
+        <physics name='1ms' type='ignored'>
+            <max_step_size>0.003</max_step_size>
+            <real_time_factor>1</real_time_factor>
+            <real_time_update_rate>1000</real_time_update_rate>
+        </physics>
+        <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system' />
+        <plugin name='ignition::gazebo::systems::UserCommands' filename='ignition-gazebo-user-commands-system' />
+        <plugin name='ignition::gazebo::systems::SceneBroadcaster' filename='ignition-gazebo-scene-broadcaster-system' />
+        <plugin name='ignition::gazebo::systems::Contact' filename='ignition-gazebo-contact-system' />
+        <light name='sun' type='directional'>
+            <cast_shadows>0</cast_shadows>
+            <pose>0 0 10 0 0 0</pose>
+            <diffuse>0.9 0.9 0.9 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+            <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+            <direction>-0.4 0.2 -0.9</direction>
+        </light>
+        <gravity>0 0 -9.8</gravity>
+        <scene>
+            <ambient>0.5 0.5 0.5 1</ambient>
+            <background>0.7 0.7 0.75 1</background>
+            <shadows>0</shadows>
+        </scene>
+        <model name='ground_plane'>
+            <static>1</static>
+            <link name='link'>
+                <collision name='collision'>
+                    <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+                </collision>
+                <visual name='visual'>
+                    <geometry><plane><normal>0 0 1</normal><size>100 100</size></plane></geometry>
+                    <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.35 0.35 0.35 1</diffuse></material>
+                </visual>
+            </link>
+        </model>{bodies}
+    </world>
+</sdf>
+"""
+
+
+def main() -> None:
+    out = (
+        Path(__file__).resolve().parents[1]
+        / "ros2_ws" / "src" / "rescue_world" / "worlds" / "rescue_arena.sdf"
+    )
+    out.write_text(build_world(), encoding="utf-8")
+    print(f"wrote {out}  ({len(WALLS)} walls, {len(RUBBLE)} rubble, {len(VICTIMS)} victims)")
+
+
+if __name__ == "__main__":
+    main()

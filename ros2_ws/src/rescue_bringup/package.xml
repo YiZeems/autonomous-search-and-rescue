@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>rescue_bringup</name>
+  <version>0.1.0</version>
+  <description>
+    Main entry-point launch files, SLAM/Nav2/RViz configs. Supports both robot
+    stacks: TurtleBot 3 Waffle Pi + Gazebo Classic 11 (bringup.launch.py) and
+    TurtleBot 4 Standard + Ignition Gazebo Fortress (bringup_tb4.launch.py for
+    a simple bringup, OR `./scripts/run.sh demo-tb4` for the validated
+    end-to-end pipeline with TF/cmd_vel/scan relays + DDS profile). See
+    docs/MERGE_NOTES.md.
+  </description>
+
+  <maintainer email="julien.gimenez@telecom-paris.fr">Julien GIMENEZ</maintainer>
+  <maintainer email="hugo.fanchini@telecom-paris.fr">Hugo FANCHINI</maintainer>
+  <maintainer email="paul.cintra@telecom-paris.fr">Paul CINTRA</maintainer>
+  <maintainer email="yimou.zhang@telecom-paris.fr">Yimou ZHANG</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>ros2launch</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>apriltag_ros</exec_depend>
+  <!-- TB3 / Gazebo Classic stack -->
+  <exec_depend>gazebo_ros</exec_depend>
+  <exec_depend>turtlebot3_gazebo</exec_depend>
+  <!-- TB4 / Ignition Fortress stack -->
+  <exec_depend>turtlebot4_simulator</exec_depend>
+  <exec_depend>turtlebot4_ignition_bringup</exec_depend>
+  <exec_depend>turtlebot4_navigation</exec_depend>
+  <exec_depend>turtlebot4_msgs</exec_depend>
+  <exec_depend>irobot_create_msgs</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <!-- Workspace packages -->
+  <exec_depend>rescue_robot</exec_depend>
+  <exec_depend>rescue_world</exec_depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

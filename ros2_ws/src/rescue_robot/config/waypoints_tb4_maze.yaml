@@ -1,0 +1,11 @@
+# Waypoints for TurtleBot4 — maze world (Ignition Gazebo Fortress).
+# Robot spawns at (0, 0) facing east in the maze corridors (~1m wide).
+# Points stay within the initial SLAM map and known-free maze corridors.
+
+waypoints:
+  - {x:  0.5,  y:  0.0,  yaw: 0.0}      # corridor est
+  - {x:  1.0,  y:  0.0,  yaw: 0.0}      # plus loin est
+  - {x:  1.0,  y: -1.0,  yaw: -1.5708}  # virage sud
+  - {x:  0.5,  y: -1.0,  yaw: 3.1416}   # retour ouest
+  - {x:  0.0,  y: -1.0,  yaw: 3.1416}   # retour origine Y
+  - {x:  0.0,  y:  0.0,  yaw: 1.5708}   # retour spawn

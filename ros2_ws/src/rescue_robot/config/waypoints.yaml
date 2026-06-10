@@ -1,0 +1,21 @@
+# Predefined waypoints for turtlebot3_house world (map frame, metres).
+# Robot spawns at (-2.0, -0.5) by default in turtlebot3_house.
+# This path makes a broad sweep of the main rooms and corridors.
+#
+# Format: x, y (metres), yaw (radians, 0=east, pi/2=north, pi=west)
+#
+# To use a custom path:
+#   ros2 launch rescue_robot waypoint.launch.py waypoints_file:=/path/to/my_waypoints.yaml
+#
+# To add a waypoint: measure the (x,y) from RViz2 clicked_point topic,
+# pick yaw to orient the robot towards the next room.
+
+waypoints:
+  - {x:  0.0,  y:  0.0,  yaw: 0.0}      # centre de la maison
+  - {x:  1.5,  y:  0.0,  yaw: 0.0}       # salon droit
+  - {x:  1.5,  y:  1.5,  yaw: 1.5708}    # coin cuisine
+  - {x:  0.0,  y:  1.5,  yaw: 3.1416}    # couloir nord
+  - {x: -1.5,  y:  1.5,  yaw: 3.1416}    # chambre gauche
+  - {x: -1.5,  y:  0.0,  yaw: -1.5708}   # retour centre-gauche
+  - {x: -1.5,  y: -1.5,  yaw: -1.5708}   # entrée / couloir sud
+  - {x:  0.0,  y: -1.5,  yaw: 0.0}       # retour centre-bas

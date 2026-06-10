@@ -1,0 +1,28 @@
+frontier_explorer_node:
+  ros__parameters:
+    use_sim_time: true
+    # Frame to locate the robot in for goal selection.
+    #   TurtleBot3 (Gazebo Classic): base_footprint
+    #   TurtleBot4 (Ignition):       turtlebot4/base_link  (override at launch)
+    map_frame: map
+    base_frame: base_footprint
+    # A frontier cluster must have at least this many cells to be worth visiting
+    # (filters out 1-2 cell noise on the explored/unknown boundary).
+    min_frontier_size: 3
+    # How often to (re)evaluate frontiers and pick the next goal.
+    replan_period_sec: 3.0
+    # Stop exploring once this fraction of the map is known (matches the BT
+    # supervisor and the project's 90% coverage success criterion).
+    coverage_stop_threshold: 0.90
+    # ── Frontier blacklisting (cf. CM8 "Inaccessible Frontiers") ──
+    # World-metre bucket size used to key blacklisted frontiers (stable as the
+    # map grows). Goals within this distance count as "the same" frontier.
+    blacklist_quantum_m: 0.5
+    # A re-selected frontier with coverage flat for this many ticks is blacklisted
+    # (catches Nav2 "success" goals that don't actually grow the map).
+    stall_repeats: 3
+    # Minimum coverage gain (fraction) to consider a goal as making progress.
+    coverage_epsilon: 0.005
+    # How many times to clear the whole blacklist (frontiers may become reachable
+    # as the map grows) before declaring exploration finished.
+    max_blacklist_clears: 3

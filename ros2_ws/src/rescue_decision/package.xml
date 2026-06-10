@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>rescue_decision</name>
+  <version>0.1.0</version>
+  <description>
+    Mission-level Behavior Tree runner (BehaviorTree.CPP v3) for the IA712
+    Project B Search and Rescue stack. Loads bt_xml/mission.xml, ticks it at
+    a fixed rate, and exposes custom condition/action nodes wired to the
+    project topics (/map, /coverage, /victims_map). Satisfies the assignment
+    requirement of a real Behavior Tree engine (no FSM), viewable in Groot.
+  </description>
+
+  <maintainer email="julien.gimenez@telecom-paris.fr">Julien GIMENEZ</maintainer>
+  <maintainer email="hugo.fanchini@telecom-paris.fr">Hugo FANCHINI</maintainer>
+  <maintainer email="paul.cintra@telecom-paris.fr">Paul CINTRA</maintainer>
+  <maintainer email="yimou.zhang@telecom-paris.fr">Yimou ZHANG</maintainer>
+
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>rclcpp</depend>
+  <depend>behaviortree_cpp_v3</depend>
+  <depend>std_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>geometry_msgs</depend>
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

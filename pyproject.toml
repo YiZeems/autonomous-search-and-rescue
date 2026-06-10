@@ -1,0 +1,40 @@
+[project]
+name = "ia712-search-and-rescue-dev"
+version = "0.1.0"
+description = "Development tooling for the IA712 autonomous search and rescue ROS 2 project."
+requires-python = ">=3.10,<3.11"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.6.0",
+  "pyyaml>=6.0",
+  "numpy>=1.24",
+  "matplotlib>=3.7",
+  "pillow>=10.0",
+  "lark>=1.1",
+]
+vision = [
+  "opencv-python>=4.8",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = [
+  "ros2_ws/build",
+  "ros2_ws/install",
+  "ros2_ws/log",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "UP"]
+ignore = []
