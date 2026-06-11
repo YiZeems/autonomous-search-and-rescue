@@ -3,26 +3,909 @@
   <model name="apriltag_36h11_00">
     <static>true</static>
     <link name="link">
-      <visual name="visual">
-        <geometry>
-          <box><size>0.16 0.008 0.16</size></box>
-        </geometry>
+      <visual name="c0000">
+        <pose>-0.072000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0001">
+        <pose>-0.056000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0002">
+        <pose>-0.040000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0003">
+        <pose>-0.024000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0004">
+        <pose>-0.008000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0005">
+        <pose>0.008000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0006">
+        <pose>0.024000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0007">
+        <pose>0.040000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0008">
+        <pose>0.056000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0009">
+        <pose>0.072000 0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0100">
+        <pose>-0.072000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0101">
+        <pose>-0.056000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0102">
+        <pose>-0.040000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0103">
+        <pose>-0.024000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0104">
+        <pose>-0.008000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0105">
+        <pose>0.008000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0106">
+        <pose>0.024000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0107">
+        <pose>0.040000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0108">
+        <pose>0.056000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0109">
+        <pose>0.072000 0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0200">
+        <pose>-0.072000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0201">
+        <pose>-0.056000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0202">
+        <pose>-0.040000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0203">
+        <pose>-0.024000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0204">
+        <pose>-0.008000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
         <material>
           <ambient>1 1 1 1</ambient>
           <diffuse>1 1 1 1</diffuse>
           <specular>0 0 0 1</specular>
-          <pbr>
-            <metal>
-              <albedo_map>materials/textures/tag36_11_00000.png</albedo_map>
-              <metalness>0.0</metalness>
-              <roughness>1.0</roughness>
-            </metal>
-          </pbr>
+        </material>
+      </visual>
+      <visual name="c0205">
+        <pose>0.008000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0206">
+        <pose>0.024000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0207">
+        <pose>0.040000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0208">
+        <pose>0.056000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0209">
+        <pose>0.072000 0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0300">
+        <pose>-0.072000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0301">
+        <pose>-0.056000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0302">
+        <pose>-0.040000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0303">
+        <pose>-0.024000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0304">
+        <pose>-0.008000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0305">
+        <pose>0.008000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0306">
+        <pose>0.024000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0307">
+        <pose>0.040000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0308">
+        <pose>0.056000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0309">
+        <pose>0.072000 0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0400">
+        <pose>-0.072000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0401">
+        <pose>-0.056000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0402">
+        <pose>-0.040000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0403">
+        <pose>-0.024000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0404">
+        <pose>-0.008000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0405">
+        <pose>0.008000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0406">
+        <pose>0.024000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0407">
+        <pose>0.040000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0408">
+        <pose>0.056000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0409">
+        <pose>0.072000 0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0500">
+        <pose>-0.072000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0501">
+        <pose>-0.056000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0502">
+        <pose>-0.040000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0503">
+        <pose>-0.024000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0504">
+        <pose>-0.008000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0505">
+        <pose>0.008000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0506">
+        <pose>0.024000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0507">
+        <pose>0.040000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0508">
+        <pose>0.056000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0509">
+        <pose>0.072000 -0.008000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0600">
+        <pose>-0.072000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0601">
+        <pose>-0.056000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0602">
+        <pose>-0.040000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0603">
+        <pose>-0.024000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0604">
+        <pose>-0.008000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0605">
+        <pose>0.008000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0606">
+        <pose>0.024000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0607">
+        <pose>0.040000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0608">
+        <pose>0.056000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0609">
+        <pose>0.072000 -0.024000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0700">
+        <pose>-0.072000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0701">
+        <pose>-0.056000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0702">
+        <pose>-0.040000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0703">
+        <pose>-0.024000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0704">
+        <pose>-0.008000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0705">
+        <pose>0.008000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0706">
+        <pose>0.024000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0707">
+        <pose>0.040000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0708">
+        <pose>0.056000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0709">
+        <pose>0.072000 -0.040000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0800">
+        <pose>-0.072000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0801">
+        <pose>-0.056000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0802">
+        <pose>-0.040000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0803">
+        <pose>-0.024000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0804">
+        <pose>-0.008000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0805">
+        <pose>0.008000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0806">
+        <pose>0.024000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0807">
+        <pose>0.040000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0808">
+        <pose>0.056000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>1 1 1 1</ambient>
+          <diffuse>1 1 1 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0809">
+        <pose>0.072000 -0.056000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0900">
+        <pose>-0.072000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0901">
+        <pose>-0.056000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0902">
+        <pose>-0.040000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0903">
+        <pose>-0.024000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0904">
+        <pose>-0.008000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0905">
+        <pose>0.008000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0906">
+        <pose>0.024000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0907">
+        <pose>0.040000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0908">
+        <pose>0.056000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
+        </material>
+      </visual>
+      <visual name="c0909">
+        <pose>0.072000 -0.072000 0 0 0 0</pose>
+        <geometry><box><size>0.015950 0.015950 0.002</size></box></geometry>
+        <material>
+          <ambient>0 0 0 1</ambient>
+          <diffuse>0 0 0 1</diffuse>
+          <specular>0 0 0 1</specular>
         </material>
       </visual>
       <collision name="collision">
         <geometry>
-          <box><size>0.16 0.008 0.16</size></box>
+          <box><size>0.16 0.16 0.003</size></box>
         </geometry>
       </collision>
     </link>

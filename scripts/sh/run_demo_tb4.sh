@@ -121,7 +121,7 @@ export DISPLAY="${DISPLAY:-:0}"
 
 # ── Ignition plugin path (required outside ros2 launch context)
 export IGN_GAZEBO_SYSTEM_PLUGIN_PATH="/opt/ros/humble/lib:${IGN_GAZEBO_SYSTEM_PLUGIN_PATH:-}"
-export IGN_GAZEBO_RESOURCE_PATH="${WS_INSTALL}/rescue_world/share/rescue_world/worlds:/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds:/opt/ros/humble/share/irobot_create_ignition_bringup/worlds:/opt/ros/humble/share:${IGN_GAZEBO_RESOURCE_PATH:-}"
+export IGN_GAZEBO_RESOURCE_PATH="${WS_DIR}/src/rescue_world/models:${WS_INSTALL}/rescue_world/share/rescue_world/models:${WS_INSTALL}/rescue_world/share/rescue_world/worlds:/opt/ros/humble/share/turtlebot4_ignition_bringup/worlds:/opt/ros/humble/share/irobot_create_ignition_bringup/worlds:/opt/ros/humble/share:${IGN_GAZEBO_RESOURCE_PATH:-}"
 
 # ────────────────────────────────────────────────────────────────────
 _CLEANUP_DONE=0
@@ -461,46 +461,32 @@ echo "[7b/8] Perception + Behavior Tree (passifs)..."
 # n'est détecté, victim_registry publie simplement 0 victime (comportement
 # d'origine) — ça ne casse rien.
 if [ "${IA712_APRILTAG:-1}" = "1" ]; then
-    TAG_MODELS_DIR="${WS_INSTALL}/rescue_world/share/rescue_world/models"
-    if [ -d "${TAG_MODELS_DIR}/apriltag_36h11_00" ]; then
-        echo "  Spawn des AprilTags (victim_0..4) dans le monde..."
-        # (x  y  z  yaw) — z≈hauteur OAK-D ; positions à ajuster selon le monde.
-        #   panneau fin en Y → yaw oriente la face du tag.
-        _TAG_POSES=( "1.6 0.0 0.25 1.5708" "5.0 -3.0 0.25 3.1416" \
-                     "-4.0 -3.0 0.25 0.0" "-3.0 5.0 0.25 -1.5708" "3.0 6.0 0.25 3.1416" )
-        for _i in 0 1 2 3 4; do
-            read -r _x _y _z _Y <<< "${_TAG_POSES[$_i]}"
-            ros2 run ros_gz_sim create \
-                -world "${WORLD}" \
-                -file "${TAG_MODELS_DIR}/apriltag_36h11_0${_i}/model.sdf" \
-                -name "victim_${_i}" -x "${_x}" -y "${_y}" -z "${_z}" -Y "${_Y}" \
-                >>"${LOGDIR}/tag_spawn.log" 2>&1 || true
-        done
-        # Static TF: relie la frame caméra optique du robot (URDF) à la frame
-        # caméra scopée d'Ignition, pour que la TF apriltag camera→victim_<id>
-        # soit atteignable depuis map (sinon victim_registry ne résout pas).
-        ros2 run tf2_ros static_transform_publisher \
-            --x 0 --y 0 --z 0 --roll 0 --pitch 0 --yaw 0 \
-            --frame-id oakd_rgb_camera_optical_frame --child-frame-id "${CAM_FRAME}" \
-            --ros-args -p use_sim_time:=true \
-            >"${LOGDIR}/cam_stf.log" 2>&1 &
-        CAM_STF_PID=$!
-        # apriltag_ros : /camera/image_raw + /camera/camera_info -> /detections + TF
-        ros2 run apriltag_ros apriltag_node --ros-args \
-            --params-file "${WS_INSTALL}/rescue_bringup/share/rescue_bringup/config/apriltag_tags.yaml" \
-            -p use_sim_time:=true \
-            -r image_rect:=/camera/image_raw \
-            -r camera_info:=/camera/camera_info \
-            >"${LOGDIR}/apriltag.log" 2>&1 &
-        APRILTAG_PID=$!
-        sleep 1
-        kill -0 "${APRILTAG_PID}" 2>/dev/null \
-            && echo "  apriltag_node PID=${APRILTAG_PID} VIVANT (tag36h11 → /detections)" \
-            || echo "  [WARN] apriltag_node mort — voir ${LOGDIR}/apriltag.log"
-    else
-        echo "  [WARN] modèles AprilTag absents (${TAG_MODELS_DIR}) — lance d'abord:"
-        echo "         python3 scripts/generate_apriltag_models.py && ./scripts/run.sh build"
-    fi
+    # Tags already placed in rescue_arena.sdf via <include> blocks — no dynamic spawn.
+    # We only need the camera TF bridge and the apriltag_ros detector.
+
+    # Static TF: link the URDF optical frame to the scoped Ignition sensor frame so
+    # that the apriltag camera→victim_<id> TF chain reaches map via tf2.
+    ros2 run tf2_ros static_transform_publisher \
+        --x 0 --y 0 --z 0 --roll 0 --pitch 0 --yaw 0 \
+        --frame-id oakd_rgb_camera_optical_frame --child-frame-id "${CAM_FRAME}" \
+        --ros-args -p use_sim_time:=true \
+        >"${LOGDIR}/cam_stf.log" 2>&1 &
+    CAM_STF_PID=$!
+
+    # apriltag_ros : /camera/image_raw + /camera/camera_info -> /detections + TF
+    _ATAG_PARAMS="${WS_INSTALL}/rescue_bringup/share/rescue_bringup/config/apriltag_tags.yaml"
+    [ -f "${_ATAG_PARAMS}" ] || _ATAG_PARAMS="${WS_DIR}/src/rescue_bringup/config/apriltag_tags.yaml"
+    ros2 run apriltag_ros apriltag_node --ros-args \
+        --params-file "${_ATAG_PARAMS}" \
+        -p use_sim_time:=true \
+        -r image_rect:=/camera/image_raw \
+        -r camera_info:=/camera/camera_info \
+        >"${LOGDIR}/apriltag.log" 2>&1 &
+    APRILTAG_PID=$!
+    sleep 1
+    kill -0 "${APRILTAG_PID}" 2>/dev/null \
+        && echo "  apriltag_node PID=${APRILTAG_PID} VIVANT (tag36h11 → /detections)" \
+        || echo "  [WARN] apriltag_node mort — voir ${LOGDIR}/apriltag.log"
 fi
 
 if [ "${IA712_VICTIM_REGISTRY:-1}" = "1" ]; then

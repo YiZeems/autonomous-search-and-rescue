@@ -307,65 +307,27 @@
                 </visual>
             </link>
         </model>
-        <model name='victim_0'>
-            <static>1</static>
-            <pose>4.600 4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_1'>
-            <static>1</static>
-            <pose>-4.600 -4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_2'>
-            <static>1</static>
-            <pose>-4.600 4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_3'>
-            <static>1</static>
-            <pose>4.600 -4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
+
+        <!-- AprilTag victims (auto-generated) -->
+        <include>
+            <uri>model://apriltag_36h11_00</uri>
+            <name>victim_0</name>
+            <pose>4.6000 5.9240 0.2800 1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_01</uri>
+            <name>victim_1</name>
+            <pose>-4.6000 -5.9240 0.2800 -1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_02</uri>
+            <name>victim_2</name>
+            <pose>-4.6000 5.9240 0.2800 1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_03</uri>
+            <name>victim_3</name>
+            <pose>4.6000 -5.9240 0.2800 -1.5708 0.0000 0.0000</pose>
+        </include>
     </world>
 </sdf>
