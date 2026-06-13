@@ -21,13 +21,15 @@ coverage plateaus (observed: stuck at 53.8% re-sending the same goal).
 
     ros2 run rescue_robot frontier_explorer_node
 """
+import os
+
 from action_msgs.msg import GoalStatus
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.time import Time
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
-from nav2_msgs.action import NavigateToPose
+from nav2_msgs.action import ComputePathToPose, NavigateToPose
 from tf2_ros import Buffer, TransformListener
 
 from rescue_robot.exploration import frontier_search as fs
@@ -47,6 +49,26 @@ class FrontierExplorerNode(Node):
         self.declare_parameter("stall_repeats", 3)
         self.declare_parameter("coverage_epsilon", 0.005)
         self.declare_parameter("max_blacklist_clears", 3)
+        # L17 bonus: exploration strategy (greedy | info_gain | size_dist).
+        # IA712_EXPLORE_STRATEGY env overrides the param (used by the benchmark).
+        self.declare_parameter("strategy", "info_gain")
+        self.declare_parameter("info_gain_lambda", 1.0)
+        self.declare_parameter("info_gain_radius_m", 1.5)
+        # SpinAndScan: rotate in place after each reached goal so the OAK-D sweeps
+        # the walls — frontier goals point the camera along travel, missing the
+        # wall-mounted victim tags otherwise (fixes "explores but sees no victim").
+        self.declare_parameter("spin_and_scan", True)
+        self.declare_parameter("spin_scan_speed", 0.6)      # rad/s
+        self.declare_parameter("spin_scan_duration", 7.0)   # s (~ one full turn)
+        # Goal refinement (cf. codex §5): snap the goal to the nearest FREE cell so
+        # Nav2 doesn't reject a centroid sitting in unknown/occupied space; skip IG
+        # frontiers revealing fewer than info_gain_min_gain unknown cells.
+        self.declare_parameter("goal_snap_radius", 8)       # cells
+        self.declare_parameter("info_gain_min_gain", 0)
+        # Reachability pre-check (cf. codex §5/§6): ask Nav2 ComputePathToPose for
+        # a path BEFORE committing a NavigateToPose goal; if there is no path,
+        # blacklist + re-pick immediately instead of wasting a ~60 s timeout.
+        self.declare_parameter("precheck_reachable", True)
 
         self._map_frame = self.get_parameter("map_frame").value
         self._base_frame = self.get_parameter("base_frame").value
@@ -56,6 +78,18 @@ class FrontierExplorerNode(Node):
         self._stall_repeats = int(self.get_parameter("stall_repeats").value)
         self._cov_eps = float(self.get_parameter("coverage_epsilon").value)
         self._max_clears = int(self.get_parameter("max_blacklist_clears").value)
+        self._strategy = os.environ.get(
+            "IA712_EXPLORE_STRATEGY", str(self.get_parameter("strategy").value)
+        ).strip()
+        self._ig_lambda = float(self.get_parameter("info_gain_lambda").value)
+        self._ig_radius_m = float(self.get_parameter("info_gain_radius_m").value)
+        self._spin_scan = bool(self.get_parameter("spin_and_scan").value)
+        self._spin_speed = float(self.get_parameter("spin_scan_speed").value)
+        self._spin_duration = float(self.get_parameter("spin_scan_duration").value)
+        self._spin_ticks_left = 0
+        self._snap_radius = int(self.get_parameter("goal_snap_radius").value)
+        self._ig_min_gain = int(self.get_parameter("info_gain_min_gain").value)
+        self._precheck = bool(self.get_parameter("precheck_reachable").value)
 
         self._map: OccupancyGrid | None = None
         self._navigating = False
@@ -71,14 +105,17 @@ class FrontierExplorerNode(Node):
 
         self.subscription = self.create_subscription(OccupancyGrid, "/map", self._map_cb, 10)
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
+        self._path_client = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
+        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         period = float(self.get_parameter("replan_period_sec").value)
         self.timer = self.create_timer(period, self._tick)
         self.get_logger().info(
-            f"Frontier explorer started — stop at {self._cov_stop:.0%} coverage, "
-            f"min frontier size {self._min_size}, blacklist quantum {self._quantum} m."
+            f"Frontier explorer started — strategy={self._strategy} "
+            f"(λ={self._ig_lambda}, r={self._ig_radius_m} m), spin_scan={self._spin_scan}, "
+            f"stop at {self._cov_stop:.0%} coverage, min frontier size {self._min_size}."
         )
 
     def _map_cb(self, msg: OccupancyGrid) -> None:
@@ -123,7 +160,14 @@ class FrontierExplorerNode(Node):
             centroids, info.resolution, info.origin.position.x, info.origin.position.y,
             self._blacklist, self._quantum,
         )
-        goal = fs.choose_frontier(reachable, self._robot_cell(info), min_size=self._min_size)
+        robot = self._robot_cell(info)
+        radius_cells = max(1, int(round(self._ig_radius_m / info.resolution))) if info.resolution else 1
+        goal = fs.select_frontier(
+            self._strategy, reachable, robot,
+            data=msg.data, width=info.width, height=info.height,
+            radius_cells=radius_cells, lam=self._ig_lambda, min_size=self._min_size,
+            min_gain=self._ig_min_gain,
+        )
 
         if goal is None:
             # Every frontier is either too small or blacklisted. Frontiers may
@@ -149,7 +193,11 @@ class FrontierExplorerNode(Node):
                                    throttle_duration_sec=5.0)
             return
 
-        wx, wy = fs.cell_to_world(goal[0], goal[1], info.resolution,
+        # Snap the chosen centroid to the nearest free cell so Nav2 accepts it.
+        snap = fs.nearest_free_cell(msg.data, info.width, info.height,
+                                    goal[0], goal[1], self._snap_radius)
+        gx, gy = snap if snap is not None else (goal[0], goal[1])
+        wx, wy = fs.cell_to_world(gx, gy, info.resolution,
                                   info.origin.position.x, info.origin.position.y)
         key = fs.blacklist_key(wx, wy, self._quantum)
 
@@ -171,24 +219,73 @@ class FrontierExplorerNode(Node):
             self._last_goal_key = key
             self._coverage_at_last_goal = coverage
 
+        extra = ""
+        if self._strategy == "info_gain":
+            gain, cost, score = fs.infogain_score(
+                goal, robot, msg.data, info.width, info.height,
+                radius_cells, self._ig_lambda,
+            )
+            extra = f", gain={gain} cost={cost:.1f} score={score:.1f}"
         self.get_logger().info(
-            f"Frontier goal -> ({wx:.2f}, {wy:.2f})  [cluster {goal[2]} cells, "
-            f"coverage {coverage:.1%}]"
+            f"Frontier goal [{self._strategy}] -> ({wx:.2f}, {wy:.2f})  "
+            f"[cluster {goal[2]} cells{extra}, coverage {coverage:.1%}]"
         )
-        self._send_goal(wx, wy)
+        self._go_to(wx, wy)
 
-    def _send_goal(self, wx: float, wy: float) -> None:
-        goal = NavigateToPose.Goal()
+    def _pose(self, wx: float, wy: float) -> PoseStamped:
         pose = PoseStamped()
         pose.header.frame_id = self._map_frame
         pose.header.stamp = self.get_clock().now().to_msg()
         pose.pose.position.x = wx
         pose.pose.position.y = wy
         pose.pose.orientation.w = 1.0
-        goal.pose = pose
+        return pose
 
+    def _go_to(self, wx: float, wy: float) -> None:
         self._navigating = True
         self._current_goal_world = (wx, wy)
+        if self._precheck and self._path_client.server_is_ready():
+            self._request_path(wx, wy)
+        else:
+            self._send_nav_goal(wx, wy)
+
+    # -- reachability pre-check (ComputePathToPose) -------------------------------
+
+    def _request_path(self, wx: float, wy: float) -> None:
+        g = ComputePathToPose.Goal()
+        g.goal = self._pose(wx, wy)
+        g.use_start = False
+        future = self._path_client.send_goal_async(g)
+        future.add_done_callback(lambda f: self._on_path_response(f, wx, wy))
+
+    def _on_path_response(self, future, wx: float, wy: float) -> None:
+        handle = future.result()
+        if handle is None or not handle.accepted:
+            self._send_nav_goal(wx, wy)        # can't pre-check -> just try it
+            return
+        handle.get_result_async().add_done_callback(
+            lambda f: self._on_path_result(f, wx, wy)
+        )
+
+    def _on_path_result(self, future, wx: float, wy: float) -> None:
+        result = future.result()
+        status = getattr(result, "status", GoalStatus.STATUS_UNKNOWN)
+        path = getattr(getattr(result, "result", None), "path", None)
+        n = len(path.poses) if path is not None else 0
+        if status != GoalStatus.STATUS_SUCCEEDED or n == 0:
+            self.get_logger().info(
+                f"Pre-check: no path to ({wx:.2f}, {wy:.2f}) -> blacklisted, re-picking."
+            )
+            self._blacklist_current_goal("no-path")
+            self._navigating = False
+            return
+        self._send_nav_goal(wx, wy)
+
+    # -- NavigateToPose ----------------------------------------------------------
+
+    def _send_nav_goal(self, wx: float, wy: float) -> None:
+        goal = NavigateToPose.Goal()
+        goal.pose = self._pose(wx, wy)
         future = self._client.send_goal_async(goal)
         future.add_done_callback(self._on_goal_response)
 
@@ -206,7 +303,34 @@ class FrontierExplorerNode(Node):
         status = getattr(future.result(), "status", GoalStatus.STATUS_UNKNOWN)
         if status != GoalStatus.STATUS_SUCCEEDED:
             self._blacklist_current_goal(f"status={status}")
-        self._navigating = False
+            self._navigating = False
+            return
+        # Reached the frontier. Optionally spin in place so the camera sweeps the
+        # walls (victim tags) before picking the next goal. Keep _navigating=True
+        # until the spin finishes so _tick doesn't grab a new goal mid-spin.
+        self._current_goal_world = None
+        if self._spin_scan:
+            self._start_spin()
+        else:
+            self._navigating = False
+
+    def _start_spin(self) -> None:
+        self._spin_steps_left = max(1, int(self._spin_duration / 0.1))
+        self._spin_timer = self.create_timer(0.1, self._spin_step)
+        self.get_logger().info(
+            f"SpinAndScan: rotating ~{self._spin_duration:.0f}s to sweep the camera."
+        )
+
+    def _spin_step(self) -> None:
+        if self._spin_steps_left <= 0:
+            self._cmd_pub.publish(Twist())          # stop
+            self._spin_timer.cancel()
+            self._navigating = False
+            return
+        twist = Twist()
+        twist.angular.z = self._spin_speed
+        self._cmd_pub.publish(twist)
+        self._spin_steps_left -= 1
 
     def _blacklist_current_goal(self, reason: str) -> None:
         if self._current_goal_world is None:

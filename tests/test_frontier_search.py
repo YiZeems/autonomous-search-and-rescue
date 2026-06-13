@@ -166,3 +166,90 @@ def test_blacklisted_frontier_is_not_chosen() -> None:
     reachable = fs.filter_blacklisted(centroids, 1.0, 0.0, 0.0, bl, 0.5)
     choice = fs.choose_frontier(reachable, (0.0, 0.0), min_size=3)
     assert choice == (20.0, 0.0, 5)
+
+
+# ---------------------------------------------------------------------------
+# L17 bonus: greedy vs information-gain selection
+# ---------------------------------------------------------------------------
+
+def _grid(width: int, height: int, fill: int = 0) -> list[int]:
+    return [fill] * (width * height)
+
+
+def test_count_unknown_in_radius() -> None:
+    w, h = 5, 5
+    data = _grid(w, h, 0)
+    for x, y in [(2, 2), (2, 3), (3, 2), (1, 2), (2, 1)]:  # center + 4 orthogonal
+        data[y * w + x] = fs.UNKNOWN
+    # radius 1 => dx^2+dy^2<=1 => center + 4 neighbours, all unknown here
+    assert fs.count_unknown_in_radius(data, w, h, 2, 2, 1) == 5
+    assert fs.count_unknown_in_radius(data, w, h, 2, 2, 0) == 0  # radius 0 -> none
+
+
+def test_choose_frontier_greedy_picks_nearest() -> None:
+    cents = [(10, 0, 5), (2, 0, 5), (5, 5, 50)]  # nearest is (2,0) despite small size
+    assert fs.choose_frontier_greedy(cents, (0, 0), min_size=3) == (2, 0, 5)
+
+
+def test_choose_frontier_greedy_respects_min_size() -> None:
+    cents = [(1, 0, 2), (4, 0, 5)]  # nearest too small -> the next one
+    assert fs.choose_frontier_greedy(cents, (0, 0), min_size=3) == (4, 0, 5)
+
+
+def test_infogain_balances_gain_and_cost() -> None:
+    w, h = 20, 20
+    data = _grid(w, h, 0)
+    for y in range(12, 19):           # big unknown blob near (15,15)
+        for x in range(12, 19):
+            data[y * w + x] = fs.UNKNOWN
+    cents = [(3, 3, 5), (12, 12, 5)]  # close+low-gain  vs  far+high-gain
+    # small lambda: information dominates -> pick the far, high-gain frontier
+    assert fs.choose_frontier_infogain(cents, (0, 0), data, w, h, 4, lam=0.1, min_size=3) == (12, 12, 5)
+    # huge lambda: cost dominates -> behaves greedy, pick the close one
+    assert fs.choose_frontier_infogain(cents, (0, 0), data, w, h, 4, lam=100.0, min_size=3) == (3, 3, 5)
+
+
+def test_infogain_cost_fn_none_skips_unreachable() -> None:
+    w, h = 10, 10
+    data = _grid(w, h, 0)
+    cents = [(5, 5, 5)]
+    # cost_fn returning None == no Nav2 path -> frontier skipped -> nothing selected
+    assert fs.choose_frontier_infogain(
+        cents, (0, 0), data, w, h, 3, cost_fn=lambda x, y: None
+    ) is None
+
+
+def test_select_frontier_dispatch() -> None:
+    cents = [(2, 0, 5), (8, 0, 5)]
+    assert fs.select_frontier("greedy", cents, (0, 0), min_size=3) == (2, 0, 5)
+    assert fs.select_frontier("size_dist", cents, (0, 0), min_size=3) is not None
+    data = _grid(10, 10, fs.UNKNOWN)
+    assert fs.select_frontier(
+        "info_gain", cents, (0, 0), data=data, width=10, height=10,
+        radius_cells=3, lam=1.0, min_size=3,
+    ) is not None
+
+
+def test_nearest_free_cell_snaps_to_free() -> None:
+    w, h = 7, 7
+    data = _grid(w, h, fs.UNKNOWN)        # all unknown...
+    data[3 * w + 5] = 0                    # ...except one free cell at (5,3)
+    # centroid sits in unknown (3,3) -> snap to the nearest free cell (5,3)
+    assert fs.nearest_free_cell(data, w, h, 3, 3, search_radius=8) == (5, 3)
+    # already free -> returns itself
+    assert fs.nearest_free_cell(data, w, h, 5, 3) == (5, 3)
+    # nothing free within radius -> None
+    assert fs.nearest_free_cell(data, w, h, 0, 0, search_radius=1) is None
+
+
+def test_infogain_min_gain_filters_low_gain() -> None:
+    w, h = 20, 20
+    data = _grid(w, h, 0)
+    for y in range(12, 19):
+        for x in range(12, 19):
+            data[y * w + x] = fs.UNKNOWN     # high-gain blob near (15,15)
+    cents = [(3, 3, 5), (12, 12, 5)]         # low-gain vs high-gain
+    # min_gain high enough to drop the low-gain (3,3) -> only (12,12) eligible
+    g = fs.choose_frontier_infogain(cents, (0, 0), data, w, h, 4, lam=0.1,
+                                    min_size=3, min_gain=5)
+    assert g == (12, 12, 5)

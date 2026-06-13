@@ -287,7 +287,7 @@ def test_result_exporter_writes_csv_on_coverage_message(ros_context, tmp_path) -
 
     rows = list(csv_mod.reader(exporter.coverage_path.open()))
     assert len(rows) >= 2, "coverage CSV must have header + at least 1 data row"
-    assert rows[0] == ["time", "coverage"], f"Wrong CSV header: {rows[0]}"
+    assert rows[0] == ["time", "coverage", "path_length_m"], f"Wrong CSV header: {rows[0]}"
     values = [float(r[1]) for r in rows[1:]]
     assert all(0.0 <= v <= 1.0 for v in values), (
         f"CSV contains invalid coverage values: {values}"

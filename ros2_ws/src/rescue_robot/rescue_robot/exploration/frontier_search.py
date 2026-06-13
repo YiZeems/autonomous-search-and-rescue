@@ -151,3 +151,161 @@ def choose_frontier(
             best_score = score
             best = (cx, cy, size)
     return best
+
+
+# ── L17 bonus: two comparable exploration strategies ─────────────────────────
+# The assignment bonus asks for a quantitative comparison of "greedy frontier"
+# vs "information-gain" exploration (coverage over time). Both reuse the frontier
+# detection/clustering above; only the GOAL-SELECTION rule differs:
+#   greedy     : drive to the nearest reachable frontier (classic explore_lite).
+#   info_gain  : maximise  gain(f) - lambda*cost(f)  (Stachniss et al., ICRA 2005)
+#                gain = unknown cells revealed near f; cost = travel cost to f.
+# Keep these PURE (no ROS) so they stay unit-testable; the node injects a Nav2
+# path-length cost via ``cost_fn`` when available, else Euclidean is used.
+
+
+def count_unknown_in_radius(
+    data, width: int, height: int, cx: float, cy: float, radius_cells: int
+) -> int:
+    """Number of UNKNOWN cells within ``radius_cells`` of grid point (cx, cy).
+
+    Proxy for the information a frontier would reveal once reached.
+    """
+    if radius_cells <= 0 or width <= 0 or height <= 0:
+        return 0
+    icx, icy = int(round(cx)), int(round(cy))
+    r2 = radius_cells * radius_cells
+    x0, x1 = max(0, icx - radius_cells), min(width - 1, icx + radius_cells)
+    y0, y1 = max(0, icy - radius_cells), min(height - 1, icy + radius_cells)
+    count = 0
+    for y in range(y0, y1 + 1):
+        row = y * width
+        dy = y - icy
+        for x in range(x0, x1 + 1):
+            dx = x - icx
+            if dx * dx + dy * dy <= r2 and data[row + x] == UNKNOWN:
+                count += 1
+    return count
+
+
+def nearest_free_cell(
+    data, width: int, height: int, cx: float, cy: float, search_radius: int = 8
+) -> tuple[int, int] | None:
+    """Nearest FREE grid cell to (cx, cy) within ``search_radius`` (or None).
+
+    A frontier centroid often sits ON the explored/unknown boundary, so sending
+    it raw makes Nav2 reject the goal (it lands in unknown/occupied space). We
+    snap the goal to the closest free cell instead (cf. codex §5 "déplacer le goal
+    vers une cellule libre adjacente à la frontière").
+    """
+    if width <= 0 or height <= 0:
+        return None
+    icx, icy = int(round(cx)), int(round(cy))
+    if 0 <= icx < width and 0 <= icy < height and is_free(data[icy * width + icx]):
+        return (icx, icy)
+    for r in range(1, search_radius + 1):
+        best = None
+        best_d2 = None
+        for dy in range(-r, r + 1):
+            for dx in range(-r, r + 1):
+                if max(abs(dx), abs(dy)) != r:   # only the ring at radius r
+                    continue
+                x, y = icx + dx, icy + dy
+                if 0 <= x < width and 0 <= y < height and is_free(data[y * width + x]):
+                    d2 = dx * dx + dy * dy
+                    if best_d2 is None or d2 < best_d2:
+                        best_d2, best = d2, (x, y)
+        if best is not None:
+            return best                          # nearest ring with a free cell
+    return None
+
+
+def choose_frontier_greedy(
+    centroids: list[tuple[float, float, int]],
+    robot_cell: tuple[float, float],
+    min_size: int = 3,
+) -> tuple[float, float, int] | None:
+    """Greedy baseline: the NEAREST frontier of at least ``min_size`` cells."""
+    rx, ry = robot_cell
+    best = None
+    best_dist = float("inf")
+    for cx, cy, size in centroids:
+        if size < min_size:
+            continue
+        dist = ((cx - rx) ** 2 + (cy - ry) ** 2) ** 0.5
+        if dist < best_dist:
+            best_dist = dist
+            best = (cx, cy, size)
+    return best
+
+
+def infogain_score(
+    centroid: tuple[float, float, int],
+    robot_cell: tuple[float, float],
+    data, width: int, height: int,
+    radius_cells: int, lam: float, cost_fn=None,
+) -> tuple[int, float | None, float]:
+    """Return (gain, cost, score) for one centroid.
+
+    gain = unknown cells in ``radius_cells``; cost = ``cost_fn(cx, cy)`` if given
+    (e.g. Nav2 path length; None means "unreachable"), else Euclidean cell
+    distance; score = gain - lambda*cost.
+    """
+    cx, cy, _ = centroid
+    gain = count_unknown_in_radius(data, width, height, cx, cy, radius_cells)
+    if cost_fn is not None:
+        cost = cost_fn(cx, cy)
+        if cost is None:
+            return gain, None, float("-inf")
+    else:
+        rx, ry = robot_cell
+        cost = ((cx - rx) ** 2 + (cy - ry) ** 2) ** 0.5
+    return gain, cost, gain - lam * cost
+
+
+def choose_frontier_infogain(
+    centroids: list[tuple[float, float, int]],
+    robot_cell: tuple[float, float],
+    data, width: int, height: int,
+    radius_cells: int, lam: float = 1.0, min_size: int = 3, cost_fn=None,
+    min_gain: int = 0,
+) -> tuple[float, float, int] | None:
+    """Information-gain selection: argmax over ``gain - lambda*cost``.
+
+    Frontiers whose ``cost_fn`` returns None (no Nav2 path) are skipped, and so
+    are frontiers revealing fewer than ``min_gain`` unknown cells (already-known
+    areas not worth a trip).
+    """
+    best = None
+    best_score = float("-inf")
+    for c in centroids:
+        if c[2] < min_size:
+            continue
+        gain, cost, score = infogain_score(
+            c, robot_cell, data, width, height, radius_cells, lam, cost_fn
+        )
+        if cost is None or gain < min_gain:
+            continue
+        if score > best_score:
+            best_score = score
+            best = c
+    return best
+
+
+def select_frontier(
+    strategy: str,
+    centroids: list[tuple[float, float, int]],
+    robot_cell: tuple[float, float],
+    *, data=None, width: int = 0, height: int = 0,
+    radius_cells: int = 0, lam: float = 1.0, min_size: int = 3, cost_fn=None,
+    min_gain: int = 0,
+) -> tuple[float, float, int] | None:
+    """Dispatch goal selection on ``strategy`` (greedy | info_gain | size_dist)."""
+    if strategy == "greedy":
+        return choose_frontier_greedy(centroids, robot_cell, min_size)
+    if strategy == "info_gain":
+        return choose_frontier_infogain(
+            centroids, robot_cell, data, width, height,
+            radius_cells, lam, min_size, cost_fn, min_gain,
+        )
+    return choose_frontier(centroids, robot_cell, min_size)  # size/distance hybrid

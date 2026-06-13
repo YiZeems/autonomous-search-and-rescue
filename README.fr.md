@@ -19,11 +19,12 @@
 5. [Arborescence du dépôt](#arborescence-du-dépôt)
 6. [Prérequis & installation](#prérequis--installation)
 7. [Build & lancement](#build--lancement)
-8. [État d'avancement](#état-davancement-phasage-6-séances)
-9. [Risques & mitigations](#risques--mitigations)
-10. [Stratégie bonus](#stratégie-bonus)
-11. [Critères de réussite](#critères-de-réussite-auto-check-avant-l18)
-12. [Références](#références)
+8. [Parcours de décision](#parcours-de-décision--comment-bl-en-est-arrivé-là)
+9. [État d'avancement](#état-davancement-phasage-6-séances)
+10. [Risques & mitigations](#risques--mitigations)
+11. [Stratégie bonus](#stratégie-bonus)
+12. [Critères de réussite](#critères-de-réussite-auto-check-avant-l18)
+13. [Références](#références)
 
 ---
 
@@ -340,6 +341,46 @@ Arguments du `bringup_tb4.launch.py` :
 
 ---
 
+## Parcours de décision — comment `bl` en est arrivé là
+
+Le **journal pédagogique des décisions clés** de `bl`, en `Problème → Décision →
+Pourquoi`. C'est la colonne vertébrale « lessons learned » du rapport. Chaque
+piège technique est détaillé dans [`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AND_FIXES.md).
+
+### L13–L14 — Fondations
+- **4 paquets ROS 2** (`rescue_bringup` / `rescue_robot` / `rescue_world` / `rescue_decision`). *Pourquoi :* séparation claire (launch vs autonomie vs mondes vs décision) pour travailler en parallèle.
+- **Système de mocks** (`mock_map/coverage/victim`). *Pourquoi :* développer & tester le BT, les résultats et la visu **sans Gazebo** (rapide, CI) avant la vraie stack.
+
+### L15 — SLAM + exploration autonome
+- **Exploration par frontières** (Yamauchi) + `slam_toolbox` async avec loop closure, cible ≥ 90 %. *Pourquoi :* baseline de l'énoncé.
+- **Blacklist des frontières inatteignables (CM8).** *Problème :* le robot boucle indéfiniment sur une frontière que Nav2 n'atteint pas (bloqué à 53,8 %). *Décision :* blacklister une frontière quand Nav2 l'abandonne **ou** qu'elle est re-sélectionnée sans gain de couverture ; **clé en coordonnée monde quantifiée**, pas en cellule grille. *Pourquoi monde :* l'origine de la grille glisse quand SLAM agrandit la carte → une clé-cellule dériverait et une frontière blacklistée reviendrait silencieusement.
+
+### L16 — Décision (BT) + perception
+- **BehaviorTree.CPP v3, pas de FSM.** *Pourquoi :* l'énoncé interdit les FSM. **ReactiveSequence**, pas `RetryUntilSuccessful` (qui busy-loop avec `num_attempts=-1`, ERRORS #28).
+- **AprilTag `tag36h11`, pas YOLO.** *Pourquoi :* l'énoncé exclut la détection humaine sophistiquée.
+- **AprilTags voxel, pas textures PBR.** *Problème :* une texture PBR `albedo_map` s'affiche en **blanc** uni sous Ogre2+Mesa (WSL *et* cluster) → `apriltag_ros` ne voit rien. *Décision :* construire chaque tag avec **100 boîtes colorées** + un **anneau blanc (quiet-zone)** autour du marqueur natif **8×8**. *Pourquoi l'anneau/8×8 :* un resize 10×10 naïf distord le code et supprime la quiet-zone → le tag *s'affiche* mais est **indétectable** ; l'anneau + le bon nombre de cellules réparent la détection (ERRORS #29).
+- **Source unique pour les victimes.** *Problème :* deux générateurs se disputaient `rescue_arena.sdf` (cylindres puis patch regex en AprilTags). *Décision :* `generate_rescue_arena.py` possède le monde (émet les `<include>`) ; `generate_apriltag_models.py` ne produit que les **assets** des tags.
+- **`decimate: 1.0`.** *Pourquoi :* un tag 16 cm est petit dans le flux OAK-D ; `decimate>1` le sous-résout.
+- **Registre via TF2.** Chaque détection est projetée `caméra → victim_<id> → map`, dédupliquée par ID, persistée dans `results/victims.json` — l'exigence « projeter vers le repère global » de l'énoncé.
+
+### Transverse — environnement & infrastructure
+- **CycloneDDS sur WSL (obligatoire).** *Problème :* découverte Fast-RTPS instable sous WSL → contrôleurs in-Ignition non chargés, `/turtlebot4/odom` muet. *Décision :* le profil `win` sélectionne CycloneDDS sur loopback, **gardé** (fallback Fast-RTPS si absent, ERRORS #32).
+- **Rendu GPU (D3D12) — ne jamais forcer le software GL.** *Problème :* `llvmpipe` est ~**23× plus lent** et sature le CPU → reboot de l'hôte sur les longs runs. *Décision :* le profil `win` rend Ogre2 sur le **GPU WSLg D3D12** (override GL 4.5 + adaptateur NVIDIA). *NB :* WSL n'a **aucun GL/Vulkan Linux natif NVIDIA** (CUDA + D3D12 seulement ; CUDA ≠ rendu), ERRORS #33.
+- **`.wslconfig` (cap CPU + swap).** *Problème :* les très longs runs rebootent encore l'hôte. *Décision :* plafonner CPU/mémoire WSL + swap pour laisser de la marge à Windows — [`docs/running_on_wsl.md`](docs/running_on_wsl.md).
+- **Build/run sans conda.** *Problème :* le Python 3.13 de conda casse le build (`catkin_pkg`, link ncurses) **et** le runtime (`rclpy`/numpy). *Décision :* `env -i …` ou `conda config --set auto_activate_base false` (ERRORS #31).
+- **Source dans `bl/`, exécution dans `run/bl/`.** *Pourquoi :* garder la source publiée propre ; builder & exécuter depuis une copie synchronisée (`rsyncDown_bl_run.sh`).
+- **Externalisation cloud abandonnée.** *Problème :* mesogip bannit les jobs GPU qui n'utilisent pas le GPU (notre rendu est software), et gpu-gw n'a ni conteneur ni ROS. *Décision :* exécuter **en local** (GPU + `.wslconfig`). Détail : `cloud_technique_2xcloud_robotique_ros.md`.
+
+### L17 — Bonus (stratégies d'exploration)
+- **Greedy vs information-gain.** IG = argmax `gain(f) − λ·cost(f)` (Stachniss et al., ICRA 2005). Voir [`docs/exploration_benchmark.md`](docs/exploration_benchmark.md).
+- **SpinAndScan.** *Problème :* les goals frontière orientent la caméra dans le sens de marche, donc l'OAK-D fait rarement face aux tags muraux (explore mais ne trouve pas de victime). *Décision :* tourner sur place après chaque goal atteint pour balayer les murs.
+- **Raffinement du goal.** *Problème :* un centroïde brut est sur la frontière explored/unknown → Nav2 le rejette. *Décision :* snapper le goal sur la cellule **libre** la plus proche (`nearest_free_cell`) + ignorer les frontières à gain quasi-nul (`info_gain_min_gain`).
+
+### L18 — ce qui reste
+Enchaîner les 4 victimes en **un seul run autonome continu** + atteindre 90 % de façon fiable demande un **tuning Nav2 point-à-point** plus poussé (pré-check de joignabilité via `ComputePathToPose`, tuning costmap/controller). Chaque capacité est validée individuellement ; il reste le polish d'intégration.
+
+---
+
 ## État d'avancement (phasage 6 séances)
 
 | Séance | Statut | Livrable de fin de séance                                                                               |
@@ -348,7 +389,7 @@ Arguments du `bringup_tb4.launch.py` :
 | L14    |  Done  | Architecture définie, paquets `rescue_*` scaffoldés, `colcon build` OK                                   |
 | L15    |  Done  | SLAM (`slam_toolbox`) + exploration frontière autonome (`frontier_explorer_node` + `frontier_search.py`, avec **blacklist de frontières inatteignables** — CM8) + Nav2 + config AprilTag intégrés ; **exploration autonome validée en run (~90 % de couverture atteint)** |
 | L16    |  Done  | **BT** : `rescue_decision/bt_runner.cpp` = vrai BehaviorTree.CPP v3 (ReactiveSequence dans `bt_xml/mission.xml`, Groot Monitor sur ZMQ port 1666), validé avec mocks. **Perception** : `victim_registry_node` projette les détections AprilTag vers `map` via TF2 (dédup par id, persistance `results/victims.json`) ; **4 modèles AprilTag tag36h11 voxel** (`victim_0..3`, via `scripts/generate_apriltag_models.py` — boîtes colorées + quiet-zone blanche, compatibles Ogre2/Mesa) placés statiquement dans `rescue_arena.sdf`, `apriltag_ros` (`decimate 1.0`) + bridge `camera_info` câblés. **Nav2 recovery réactivée** (spin/backup → un robot coincé se dégage). Tout intégré dans `run_demo_tb4.sh` (étapes 7b/8). **Validée end-to-end sur le vrai robot** (headless, GPU) : les **4 victimes** (`id 0..3`) détectées par l'OAK-D du TB4 → `apriltag_ros` → `victim_registry` → `results/victims.json` (une par run spawn-face) ; **l'exploration autonome atteint 91 % de couverture et trouve une victime toute seule**. Rendu GPU (D3D12, ~23× plus rapide) + `.wslconfig` rendent les longs runs stables — voir [`docs/running_on_wsl.md`](docs/running_on_wsl.md), `ERRORS_AND_FIXES.md` #29/#32/#33. _Enchaîner les 4 victimes en une seule patrouille autonome continue demande un tuning Nav2 point-à-point plus poussé — polish de démo, visé pour L18._ |
-| L17    |  TODO  | Bonus : comparatif frontier-greedy vs information-gain, benchmarks lancés, plots prêts                   |
+| L17    | Code fait | **Bonus implémenté** — exploration `greedy` vs `info_gain`, sélectionnable via le param `strategy` / `IA712_EXPLORE_STRATEGY`. Info-gain = argmax `gain(f)−λ·cost(f)` (`frontier_search.choose_frontier_infogain`, gain = cellules `unknown` dans un rayon). **SpinAndScan** fait tourner le robot après chaque goal pour balayer les murs (victimes trouvées *pendant* l'exploration). `result_exporter` logge `time_to_50/75/90`, distance parcourue & victimes par run ; `scripts/sh/run_benchmark.sh` (2 algos × N runs) + `scripts/plot_benchmark.py` → `experiments/plots/` + `summary.md`. Voir [`docs/exploration_benchmark.md`](docs/exploration_benchmark.md). _Runs de benchmark à exécuter + tracer pour le rapport._ |
 | L18    |  TODO  | Démo live (10 min) + rapport rendu (≤ 10 pages, PDF)                                                     |
 
 Cette branche est la plus avancée de l'équipe : **L16 Done**.
