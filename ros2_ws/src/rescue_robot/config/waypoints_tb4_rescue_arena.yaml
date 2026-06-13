@@ -1,0 +1,13 @@
+# Waypoints pour rescue_arena — patrouille des 4 victimes AprilTag (repère map).
+# Le robot spawn à (0,0). Chaque waypoint place le robot ~1.3 m DEVANT un mur
+# porteur d'un tag, ORIENTÉ vers le mur, pour que l'OAK-D voie le tag36h11.
+# Tags: victim_0 (4.6, 5.924) N, victim_2 (-4.6, 5.924) N,
+#       victim_1 (-4.6,-5.924) S, victim_3 (4.6,-5.924) S.
+# yaw: pi/2=+Y (nord, face mur nord), -pi/2=-Y (sud, face mur sud).
+waypoints:
+  - {x:  0.0,  y:  3.2,  yaw:  1.5708}   # couloir nord (passage)
+  - {x:  4.6,  y:  4.6,  yaw:  1.5708}   # NE : face victim_0 (mur nord)
+  - {x: -4.6,  y:  4.6,  yaw:  1.5708}   # NW : face victim_2 (mur nord)
+  - {x:  0.0,  y: -3.2,  yaw: -1.5708}   # couloir sud (passage)
+  - {x: -4.6,  y: -4.6,  yaw: -1.5708}   # SW : face victim_1 (mur sud)
+  - {x:  4.6,  y: -4.6,  yaw: -1.5708}   # SE : face victim_3 (mur sud)

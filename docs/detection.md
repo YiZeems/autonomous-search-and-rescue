@@ -28,3 +28,49 @@ camera_link or camera_optical_frame -> base_link -> odom -> map
 3. Estimate a relative pose.
 4. Transform the pose into `map` with `tf2_ros`.
 5. Publish `/victims_map`.
+
+---
+
+## Implementation as built (L16) — validated end-to-end
+
+The MVP plan above is realized with **AprilTag tag36h11** + `apriltag_ros`, and the
+camera→map projection lives in **`victim_registry_node`** (not the old
+`victim_detector_node`, which is now a superseded empty-PoseArray test fixture).
+
+### Targets: voxel AprilTags
+The 4 victim markers (`victim_0..3`) are **not** textured planes. A PBR
+`albedo_map` is silently dropped by **Ogre2 + Mesa software GL** (WSL2 and the
+cluster) → the tag renders as a blank white rectangle and nothing is detected
+(see `ERRORS_AND_FIXES.md` #29). Instead each tag is built from **100 colored
+boxes** (`<ambient>/<diffuse>`, no PBR) by
+[`scripts/generate_apriltag_models.py`](../scripts/generate_apriltag_models.py),
+laid out as a **1-cell white quiet-zone ring around the native 8×8 tag36h11
+code** (the quiet zone + correct cell count are what make the tag *detectable*,
+not just visible). Models live in `rescue_world/models/apriltag_36h11_0X/` and are
+placed statically in `rescue_arena.sdf` at z = 0.28 m (OAK-D height).
+
+### Pipeline
+```text
+OAK-D image ──▶ apriltag_ros (tag36h11, decimate 1.0)
+                  │  publishes /detections + TF  camera_optical_frame → victim_<id>
+                  ▼
+            victim_registry_node
+                  │  lookup TF  map → victim_<id>  (map→odom→base→camera→tag)
+                  │  dedup by id (> 0.5 m to re-register)
+                  ▼
+            /victims_map (PoseArray, map frame)  +  results/victims.json
+                  │
+                  ├─▶ result_exporter_node  → victims_detected.csv, run_summary.json
+                  └─▶ rviz_marker_node       → red sphere markers
+```
+
+- Config: [`apriltag_tags.yaml`](../ros2_ws/src/rescue_bringup/config/apriltag_tags.yaml)
+  (`ids: [0,1,2,3]`, frames `victim_0..3`, size 0.16 m, `decimate: 1.0`).
+- Wired in `run_demo_tb4.sh` step **7b** (static camera TF + `apriltag_ros` +
+  `victim_registry_node`).
+
+### Validation (headless, no full Gazebo demo)
+Confirmed locally without the heavy exploration run: a single rendered camera
+frame is detected by both `cv2.aruco` and `apriltag_ros` (36 detections of ID 0),
+and the full chain produces `results/victims.json` with the victim projected into
+`map`. See `ERRORS_AND_FIXES.md` #29.

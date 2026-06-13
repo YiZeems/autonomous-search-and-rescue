@@ -32,7 +32,7 @@ class WaypointFollowerNode(Node):
 
         self.declare_parameter("waypoints_file", "")
         self.declare_parameter("loop", False)
-        self.declare_parameter("goal_timeout_sec", 90.0)
+        self.declare_parameter("goal_timeout_sec", 150.0)
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._loop = self.get_parameter("loop").value

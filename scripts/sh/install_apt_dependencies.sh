@@ -25,7 +25,23 @@ sudo apt install -y \
   ros-humble-robot-state-publisher \
   ros-humble-joint-state-publisher \
   ros-humble-cv-bridge \
-  ros-humble-image-transport
+  ros-humble-image-transport \
+  ros-humble-rmw-cyclonedds-cpp \
+  ros-humble-apriltag \
+  ros-humble-apriltag-ros \
+  ros-humble-apriltag-msgs \
+  ros-humble-behaviortree-cpp-v3 \
+  python3-opencv \
+  python3-numpy
+
+# Why these (added for L16):
+#   rmw-cyclonedds-cpp : WSL DDS discovery is flaky with Fast-RTPS; the win
+#       platform profile selects CycloneDDS. Without this package every node dies
+#       at startup ("RMW implementation not installed", ERRORS_AND_FIXES #32).
+#   apriltag / apriltag-ros / apriltag-msgs : the tag36h11 victim detector.
+#   behaviortree-cpp-v3 : the rescue_decision bt_runner mission tree.
+#   python3-opencv / python3-numpy : used by scripts/generate_apriltag_models.py
+#       to build the voxel AprilTag models (cv2.aruco tag36h11).
 
 # TurtleBot3 Gazebo packages are usually available on AMD64/WSL2, but may be
 # missing from apt on ARM64. Install them only when apt can locate them.

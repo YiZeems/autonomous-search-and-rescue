@@ -3,9 +3,14 @@
 <sdf version='1.8'>
     <world name='rescue_arena'>
         <physics name='1ms' type='ignored'>
-            <max_step_size>0.003</max_step_size>
+            <!-- Coarser step (0.01 vs 0.001 default / 0.003 prev) = ~3x fewer
+                 physics iterations -> much less CPU under software GL on WSL.
+                 Safe for the slow diff-drive TB4; Nav2/SLAM don't need fine
+                 physics. real_time_factor=1 keeps realtime (no slowdown);
+                 if the host still can't keep up, RTF drops gracefully. -->
+            <max_step_size>0.01</max_step_size>
             <real_time_factor>1</real_time_factor>
-            <real_time_update_rate>1000</real_time_update_rate>
+            <real_time_update_rate>100</real_time_update_rate>
         </physics>
         <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system' />
         <plugin name='ignition::gazebo::systems::UserCommands' filename='ignition-gazebo-user-commands-system' />
@@ -99,13 +104,13 @@
         </model>
         <model name='wall_4'>
             <static>1</static>
-            <pose>-4.750 2.000 0.500 0 0 0</pose>
+            <pose>-4.950 2.000 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>2.650 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>2.250 0.150 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>2.650 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>2.250 0.150 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -117,10 +122,10 @@
             <pose>0.000 2.000 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>5.150 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>4.350 0.150 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>5.150 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>4.350 0.150 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -129,13 +134,13 @@
         </model>
         <model name='wall_6'>
             <static>1</static>
-            <pose>4.750 2.000 0.500 0 0 0</pose>
+            <pose>4.950 2.000 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>2.650 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>2.250 0.150 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>2.650 0.150 1.000</size></box></geometry>
+                    <geometry><box><size>2.250 0.150 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -174,13 +179,13 @@
         </model>
         <model name='wall_9'>
             <static>1</static>
-            <pose>0.000 2.750 0.500 0 0 0</pose>
+            <pose>0.000 2.600 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -189,13 +194,13 @@
         </model>
         <model name='wall_10'>
             <static>1</static>
-            <pose>0.000 5.250 0.500 0 0 0</pose>
+            <pose>0.000 5.400 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -204,13 +209,13 @@
         </model>
         <model name='wall_11'>
             <static>1</static>
-            <pose>0.000 -5.250 0.500 0 0 0</pose>
+            <pose>0.000 -5.400 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -219,13 +224,13 @@
         </model>
         <model name='wall_12'>
             <static>1</static>
-            <pose>0.000 -2.750 0.500 0 0 0</pose>
+            <pose>0.000 -2.600 0.500 0 0 0</pose>
             <link name='link'>
                 <collision name='collision'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                 </collision>
                 <visual name='visual'>
-                    <geometry><box><size>0.150 1.650 1.000</size></box></geometry>
+                    <geometry><box><size>0.150 1.350 1.000</size></box></geometry>
                     <material>
                         <ambient>0.5 0.5 0.55 1</ambient><diffuse>0.5 0.5 0.55 1</diffuse>
                     </material>
@@ -307,65 +312,26 @@
                 </visual>
             </link>
         </model>
-        <model name='victim_0'>
-            <static>1</static>
-            <pose>4.600 4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_1'>
-            <static>1</static>
-            <pose>-4.600 -4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_2'>
-            <static>1</static>
-            <pose>-4.600 4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
-        <model name='victim_3'>
-            <static>1</static>
-            <pose>4.600 -4.600 0.200 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>0.180</radius><length>0.400</length></cylinder></geometry>
-                    <material>
-                        <ambient>0.85 0.1 0.1 1</ambient><diffuse>0.85 0.1 0.1 1</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>
+        <!-- AprilTag victims (one per room) -->
+        <include>
+            <uri>model://apriltag_36h11_00</uri>
+            <name>victim_0</name>
+            <pose>4.6000 5.9240 0.2800 1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_01</uri>
+            <name>victim_1</name>
+            <pose>-4.6000 -5.9240 0.2800 -1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_02</uri>
+            <name>victim_2</name>
+            <pose>-4.6000 5.9240 0.2800 1.5708 0.0000 0.0000</pose>
+        </include>
+        <include>
+            <uri>model://apriltag_36h11_03</uri>
+            <name>victim_3</name>
+            <pose>4.6000 -5.9240 0.2800 -1.5708 0.0000 0.0000</pose>
+        </include>
     </world>
 </sdf>

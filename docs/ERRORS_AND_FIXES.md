@@ -842,3 +842,186 @@ while (rclcpp::ok() && status != BT::NodeStatus::SUCCESS) {
 **runner** (re-tick du root) + `ReactiveSequence`/`ReactiveFallback`, jamais via
 un décorateur Retry sur une condition synchrone. Réserver Retry aux **actions
 asynchrones** qui retournent `RUNNING` (ex. `NavigateToPose`).
+
+---
+
+## 29. AprilTags invisibles puis indétectables — PBR blanc (Ogre2/Mesa) + voxels mal encodés ✅ RÉSOLU
+
+**Symptôme**
+Sur la carte de démo, aucun AprilTag n'apparaît / `apriltag_ros` ne publie jamais
+sur `/detections`. Le robot explore mais ne « voit » aucune victime. Deux pannes
+successives :
+1. les panneaux AprilTag s'affichent comme de **simples rectangles blancs** ;
+2. après passage en voxels, ils s'affichent correctement **mais restent
+   indétectables** (aucune détection).
+
+**Cause**
+1. Les modèles d'origine utilisaient une texture **PBR `albedo_map`**. Sous
+   **Ogre2 + Mesa software GL** (WSL2 *et* nœuds de calcul du cluster, cf. #26 et
+   `cloud_technique_2xcloud_robotique_ros.md`), l'`albedo_map` est silencieusement
+   ignorée → le panneau est rendu blanc uni → `apriltag_ros` ne voit aucun motif.
+2. Le premier correctif voxel (`generate_apriltag_models.py`) construisait une
+   grille **`GRID_N=10`** par `cv2.resize(marqueur 200px → 10×10)`. Or le marqueur
+   tag36h11 natif d'OpenCV fait **8×8** (6 bits de data + bordure noire). Échantillonner
+   8 cellules sur 10 points **distord le code** (2 colonnes/lignes dupliquées) **et**
+   il manque la **quiet-zone blanche** obligatoire autour de la bordure noire → le
+   détecteur rejette le tag (il *rend* bien mais est indétectable).
+
+**Solution**
+Tags rendus en **voxels** : 100 petites boîtes noires/blanches avec
+`<ambient>/<diffuse>` (pas de PBR) — rendu correct sur tous les backends Ogre2.
+Encodage **corrigé** : marqueur natif **8×8** centré dans une grille **10×10**
+dont l'**anneau externe est blanc** (quiet-zone). Voir
+[`scripts/generate_apriltag_models.py`](../scripts/generate_apriltag_models.py)
+(`_tag_cells`). 4 victimes `victim_0..3` placées statiquement dans
+`rescue_arena.sdf` à z=0.28 m (hauteur OAK-D), `decimate` ramené de 2.0 → **1.0**
+(un tag 16 cm est petit dans le flux OAK-D ; `decimate>1` le sous-résout).
+
+**Validation** (headless local, sans démo Gazebo lourde → zéro reboot)
+- frame caméra rendue capturée → anneau blanc + code noir lisible (plus de blanc) ;
+- `cv2.aruco` (DICT_APRILTAG_36h11) sur le rendu réel → `[0]` ;
+- `apriltag_ros apriltag_node` sur le rendu → **ID 0, 36 détections** ;
+- chaîne complète `apriltag_ros → TF cam→victim_0 → victim_registry_node` →
+  `/victims_map` (1 pose) + `results/victims.json` `{id:0,...}`. **L16 end-to-end OK.**
+
+**Piège annexe (test local ROS)**
+`conda` (python 3.13) pollue le daemon ROS et fait planter les nodes / fausse
+`ros2 node list`. Lancer les tests en environnement propre :
+`env -i HOME=$HOME PATH=/usr/bin:/bin …` + sorties non-bufferisées (`stdbuf -oL`)
++ un listener `rclpy` plutôt que `ros2 topic echo` (qui dépend du daemon).
+
+---
+
+## 30. Gazebo/RViz qui rament en local (WSL) — réglages de confort ✅
+
+**Symptôme**
+Sous WSL2, la simulation Ignition + RViz saccade ; chaque modif de vue ou
+interaction est lente (rendu logiciel Mesa, pas de vrai GPU exploitable).
+
+**Solution (sans dégrader le projet)**
+1. **RViz** : `Global Options → Frame Rate = 10` (déjà dans
+   [`project_view.rviz`](../ros2_ws/src/rescue_robot/rviz/project_view.rviz)) —
+   purement cosmétique (FPS d'affichage), n'affecte ni SLAM ni Nav2.
+2. **Physique du monde Ignition** : `max_step_size` 0.003 → **0.01** dans
+   `rescue_arena.sdf` (et sa source `scripts/generate_rescue_arena.py`) →
+   ~3× moins d'itérations physiques, donc beaucoup moins de CPU. `real_time_factor=1`
+   conservé (pas de ralentissement ; si l'hôte sature, le RTF chute proprement).
+   Sûr pour le TB4 (diff-drive lent) ; ne pas dépasser ~0.02 (risque de robot qui
+   traverse les murs fins).
+
+**NB** Le réglage souvent cité sur `turtlebot3_gazebo/.../turtlebot3_world.world`
+(`real_time_update_rate`, `max_step_size`) vise **Gazebo Classic + TB3** : il
+n'a **aucun effet** sur cette démo, qui tourne sous **Ignition Fortress + TB4**
+(`ign gazebo`). L'équivalent est le bloc `<physics>` des mondes `.sdf` ci-dessus.
+
+---
+
+## 31. `conda` (base) actif → build/link/runtime ROS cassés ✅ RÉSOLU
+
+**Symptôme**
+`colcon build` et l'exécution échouent de trois manières, qui semblent être trois
+bugs distincts mais n'ont **qu'une seule cause** :
+1. **configure** : `CMake … catkin_pkg`/`ament` introuvable, le build s'arrête tôt ;
+2. **link** : `rescue_decision` (le node BehaviorTree.CPP) échoue à l'édition de
+   liens sur des symboles **ncurses/tinfo** non résolus ;
+3. **runtime** : `rclpy` / `cv_bridge` crashent (`No module named 'rclpy._rclpy_pybind11'`,
+   `numpy.core.multiarray failed to import`, `_ARRAY_API not found`).
+
+**Cause (unique)**
+L'environnement **`conda base` est auto-activé** (`CONDA_PREFIX=…/miniconda3`,
+`python3` → `…/miniconda3/bin/python3` 3.13 **avant** `/usr/bin/python3` 3.10).
+Conda shadow tout le toolchain attendu par ROS Humble :
+1. `FindPython` de CMake prend le **python conda 3.13** (sans catkin_pkg/ament) ;
+2. le linker prend le **`libncurses.so.6` / `libtinfo` de conda** (qui sépare/omet
+   les symboles tinfo) au lieu de ceux du système, alors que `behaviortree_cpp_v3`
+   en a réellement besoin (`ldd` le confirme) ;
+3. au runtime, le **numpy 2.x de conda** est incompatible avec `cv_bridge`/`rclpy`
+   compilés pour numpy 1.x, et le mauvais interpréteur ne trouve pas `_rclpy`.
+
+> Ce **n'est pas** un bug du `CMakeLists.txt` de `rescue_decision` : en
+> environnement propre, `rescue_decision` se lie **sans modification** contre le
+> `libncurses/libtinfo` **système**. Ne pas y ajouter `-lncurses -ltinfo` (ça
+> masquerait le problème et casserait pour les machines sans conda).
+
+**Solution**
+- **Permanent (recommandé)** — empêcher l'auto-activation de `base` :
+  ```bash
+  conda config --set auto_activate_base false
+  # rouvrir le terminal (ou: conda deactivate)
+  ```
+  Ensuite `./scripts/run.sh build` et l'exécution marchent sans aucun flag.
+- **Ponctuel (non-invasif)** — neutraliser conda le temps d'une commande :
+  ```bash
+  env -i HOME="$HOME" PATH="/usr/bin:/bin" TERM=xterm bash -lc '
+    source /opt/ros/humble/setup.bash
+    cd ros2_ws && colcon build --symlink-install'
+  ```
+- `-DPython3_EXECUTABLE=/usr/bin/python3` **seul est insuffisant** : il corrige la
+  phase configure mais ne nettoie ni le linker (erreur 2) ni le runtime (erreur 3).
+
+---
+
+## 32. Nodes morts au démarrage : `RMW implementation not installed (rmw_cyclonedds_cpp)` ✅ RÉSOLU
+
+**Symptôme**
+Sous WSL, certains nodes (`apriltag_node`, `victim_registry`, …) meurent
+immédiatement :
+```
+[rcl]: Error getting RMW implementation identifier ... expected 'rmw_cyclonedds_cpp' ...
+failed to load shared library 'librmw_cyclonedds_cpp.so' ... No such file or directory ... exiting with 1.
+```
+La démo monte jusqu'à 7b/8 mais **aucune victime n'est détectée** (apriltag/registry
+absents).
+
+**Cause**
+Le profil `config/platform_win.sh` force `RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`
+(CycloneDDS, choisi car la découverte DDS est fiable sous WSL, cf. #26), **mais
+le paquet n'était pas installé** sur la machine (seul `rmw_fastrtps_cpp` l'est).
+Tout node qui démarre avec cette RMW inexistante quitte avec le code 1.
+
+**Solution**
+1. Installer la RMW attendue :
+   ```bash
+   sudo apt install -y ros-humble-rmw-cyclonedds-cpp
+   ```
+2. Le profil est désormais **gardé** : il ne sélectionne CycloneDDS que si
+   `librmw_cyclonedds_cpp.so` existe, sinon **fallback Fast-RTPS** (découverte WSL
+   moins fiable mais fonctionnelle) au lieu de tuer tous les nodes.
+
+---
+
+## 33. WSL reboote sur les longs runs Gazebo + rendu CPU lent ✅ RÉSOLU
+
+**Symptôme**
+Les runs `demo-tb4` longs (~15 min) **rebootent la machine Windows** ; et même
+quand ça tient, la sim est **très lente** (caméra ~0.3 img/s, tous les cœurs CPU
+saturés).
+
+**Cause**
+1. **Rendu software forcé** : des scripts mettaient `LIBGL_ALWAYS_SOFTWARE=1` →
+   Ogre2 rend sur le CPU (`llvmpipe`) au lieu du GPU. Or WSLg expose le GPU via le
+   driver **Mesa D3D12** (`/dev/dxg`), et le profil `platform_win.sh` sait déjà
+   l'utiliser (override GL 4.5 + adaptateur NVIDIA). Forcer le software = CPU à
+   fond + chaleur → instabilité.
+2. **WSL non plafonné** : par défaut WSL peut consommer tout l'hôte → sous charge
+   GPU/CPU soutenue, le passthrough `dxgkrnl` / la chaleur déstabilisent la VM.
+
+**Solution**
+- **Ne jamais forcer `LIBGL_ALWAYS_SOFTWARE=1`** → rendu sur le GPU D3D12
+  (mesuré : **~23× plus rapide**, CPU déchargé). Software = fallback
+  `IA712_WSL_SOFTWARE_GL=1` seulement.
+- **`C:\Users\<you>\.wslconfig`** (cap CPU/mémoire + swap) puis `wsl --shutdown` :
+  ```ini
+  [wsl2]
+  memory=20GB
+  swap=8GB
+  processors=16
+  gpuSupport=true
+  ```
+  Après ça : runs autonomes **stables 40+ min, sans reboot**.
+
+Voir le guide complet : [`docs/running_on_wsl.md`](running_on_wsl.md).
+
+**NB** NVIDIA ne fournit pas de GL/Vulkan natif Linux sous WSL (CUDA + D3D12
+seulement ; CUDA ≠ rendu). Pas de Vulkan matériel (dzn absent sur Ubuntu 22.04) →
+le chemin D3D12 + override GL est le bon.

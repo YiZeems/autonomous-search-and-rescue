@@ -19,7 +19,11 @@ GEN = ROOT / "scripts" / "generate_rescue_arena.py"
 
 def _models() -> list[str]:
     world = ET.parse(WORLD).getroot().find("world")
-    return [m.get("name") for m in world.findall("model")]
+    # Victims are placed as <include name="victim_N"> (AprilTag model refs), the
+    # rest (walls, rubble, ground) as <model name="...">. Collect both.
+    names = [m.get("name") for m in world.findall("model")]
+    names.extend(i.findtext("name") for i in world.findall("include"))
+    return [n for n in names if n]
 
 
 def test_world_and_generator_exist() -> None:

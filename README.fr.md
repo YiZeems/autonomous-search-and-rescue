@@ -77,7 +77,7 @@ Le projet est découpé en **quatre paquets ROS 2** : `rescue_bringup` (launch +
 flowchart LR
     subgraph SIM["Ignition Gazebo Fortress — warehouse / depot / maze"]
         ROBOT[TurtleBot 4 Standard<br/>Create 3 + RPLIDAR A1M8 + OAK-D-Pro]
-        TAGS[(AprilTags 36h11<br/>victim_0..4)]
+        TAGS[(AprilTags 36h11 voxels<br/>victim_0..3)]
     end
 
     ROBOT -- /scan + /odom --> SLAM
@@ -127,7 +127,7 @@ Chaque brique correspond à un paquet ROS 2 (cf. [§ Arborescence](#arborescence
 ### [`rescue_world`](ros2_ws/src/rescue_world/) — Mondes Ignition + cibles AprilTag
 
 - **Mondes :** on utilise les mondes Ignition Fortress livrés par `turtlebot4_ignition_bringup` (`warehouse`, `depot`, `maze`) ; un `rescue_arena.sdf` custom et un `disaster_world.world` legacy sont aussi fournis.
-- **AprilTags :** famille **tag36h11**, IDs 0-4, côté de **16 cm**, posés sur murs à hauteur caméra OAK-D.
+- **AprilTags :** famille **tag36h11**, IDs 0-3 (4 victimes), côté de **16 cm**, posés sur murs à hauteur caméra OAK-D. Rendus en **voxels (boîtes colorées)** et non en textures PBR (qu'Ogre2+Mesa affichent en blanc) — voir [`generate_apriltag_models.py`](scripts/generate_apriltag_models.py) et `ERRORS_AND_FIXES.md` #29.
 - **Fallback legacy :** mondes TurtleBot 3 Waffle Pi sous Gazebo Classic 11, conservés pour les hôtes où le rendu Ignition est instable.
 
 ### [`rescue_robot`](ros2_ws/src/rescue_robot/) — Exploration, perception, résultats (mégapaquet Python)
@@ -145,7 +145,7 @@ Ce paquet Python unique héberge les nodes d'autonomie, groupés par sous-module
 
 #### Registre des victimes (AprilTag → map)
 
-- **Détecteur :** [`apriltag_ros`](https://github.com/christianrauch/apriltag_ros) (apt), **tag36h11**, sur le flux OAK-D `/oakd/rgb/preview/image_raw`. Config tags : [`apriltag_tags.yaml`](ros2_ws/src/rescue_bringup/config/apriltag_tags.yaml) (IDs 0-4 → frames `victim_0..4`, taille 0.16 m). Pas de calibration manuelle : l'OAK-D simulée publie ses intrinsics dans `/oakd/rgb/preview/camera_info`.
+- **Détecteur :** [`apriltag_ros`](https://github.com/christianrauch/apriltag_ros) (apt), **tag36h11**, sur le flux OAK-D `/oakd/rgb/preview/image_raw`. Config tags : [`apriltag_tags.yaml`](ros2_ws/src/rescue_bringup/config/apriltag_tags.yaml) (IDs 0-3 → frames `victim_0..3`, taille 0.16 m, `decimate: 1.0`). Pas de calibration manuelle : l'OAK-D simulée publie ses intrinsics dans `/oakd/rgb/preview/camera_info`.
 - **`victim_registry_node`** (Python) : pour chaque détection, lookup `caméra → victim_<id> → map` via TF2, **déduplication par ID de tag**, publication de markers `/victims_map` pour RViz, et **persistance `results/victims.json`** après chaque nouvel enregistrement.
 
 #### Métriques de couverture
@@ -223,6 +223,7 @@ Convention de nommage : préfixe **`rescue_*`** pour isoler nos paquets des dép
 ### Système
 
 - **Ubuntu 22.04** (Jammy) — natif ou WSL 2.
+- **WSL 2 (Windows) ?** Lis d'abord [`docs/running_on_wsl.md`](docs/running_on_wsl.md) — accélération GPU (ne pas forcer le software GL), le `.wslconfig` qui empêche les longs runs de rebooter l'hôte, et le paquet obligatoire `ros-humble-rmw-cyclonedds-cpp`.
 - **ROS 2 Humble** installé (`source /opt/ros/humble/setup.bash`).
 - **Python 3.10** (épinglé via `.python-version`), aligné sur Ubuntu 22.04 / ROS 2 Humble.
 
@@ -242,12 +243,25 @@ sudo apt update && sudo apt install -y \
   ros-humble-nav2-behavior-tree \
   ros-humble-slam-toolbox \
   ros-humble-apriltag-ros \
+  ros-humble-apriltag-msgs \
+  ros-humble-rmw-cyclonedds-cpp \
   ros-humble-rviz2 \
   ros-humble-tf2-tools \
   ros-humble-behaviortree-cpp-v3 \
   ignition-fortress \
+  python3-opencv \
+  python3-numpy \
   python3-colcon-common-extensions
 ```
+
+> **WSL 2 — `ros-humble-rmw-cyclonedds-cpp` est OBLIGATOIRE, pas optionnel.** La découverte
+> Fast-RTPS est instable sous WSL (les contrôleurs in-Ignition ne se chargent pas,
+> `/turtlebot4/odom` reste muet), donc le profil `win` sélectionne **CycloneDDS**. Sans ce
+> paquet, chaque node meurt au démarrage avec *« RMW implementation not installed
+> (rmw_cyclonedds_cpp) »* (voir [`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AND_FIXES.md) #32).
+> `python3-opencv` + `python3-numpy` sont requis par
+> [`scripts/generate_apriltag_models.py`](scripts/generate_apriltag_models.py) pour générer
+> les modèles AprilTag voxel.
 
 > Un installeur pratique est aussi fourni : `./scripts/run.sh install-apt`.
 
@@ -322,7 +336,7 @@ Arguments du `bringup_tb4.launch.py` :
 
 ### Convention run/
 
-Éditer les sources dans ce dossier ; builder et exécuter depuis une copie synchronisée sous `run/` (sync via `rsyncUp_run_bl.sh` depuis la racine du dépôt). Penser à `conda deactivate` avant `colcon build`.
+Éditer les sources dans ce dossier ; builder et exécuter depuis une copie synchronisée sous `run/` (sync via `rsyncDown_bl_run.sh` depuis la racine du dépôt). Penser à `conda deactivate` avant `colcon build`.
 
 ---
 
@@ -333,7 +347,7 @@ Arguments du `bringup_tb4.launch.py` :
 | L13    |  Done  | Équipe formée, Projet B sélectionné, repo créé                                                           |
 | L14    |  Done  | Architecture définie, paquets `rescue_*` scaffoldés, `colcon build` OK                                   |
 | L15    |  Done  | SLAM (`slam_toolbox`) + exploration frontière autonome (`frontier_explorer_node` + `frontier_search.py`, avec **blacklist de frontières inatteignables** — CM8) + Nav2 + config AprilTag intégrés ; **exploration autonome validée en run (~90 % de couverture atteint)** |
-| L16    |  Done  | **BT** : `rescue_decision/bt_runner.cpp` = vrai BehaviorTree.CPP v3 (ReactiveSequence dans `bt_xml/mission.xml`, Groot Monitor sur ZMQ port 1666), validé avec mocks. **Perception** : `victim_registry_node` projette les détections AprilTag vers `map` via TF2 (dédup par id, persistance `results/victims.json`) ; **5 modèles AprilTag tag36h11 générés** (`victim_0..4`, via `scripts/generate_apriltag_models.py`) + spawn dans le monde, `apriltag_ros` + bridge `camera_info` câblés. **Nav2 recovery réactivée** (spin/backup → un robot coincé se dégage). Tout intégré dans `run_demo_tb4.sh` (étapes 7b/8). _Run end-to-end victimes à finaliser sur une passe Gazebo (placement des tags + frames caméra à ajuster visuellement)._ |
+| L16    |  Done  | **BT** : `rescue_decision/bt_runner.cpp` = vrai BehaviorTree.CPP v3 (ReactiveSequence dans `bt_xml/mission.xml`, Groot Monitor sur ZMQ port 1666), validé avec mocks. **Perception** : `victim_registry_node` projette les détections AprilTag vers `map` via TF2 (dédup par id, persistance `results/victims.json`) ; **4 modèles AprilTag tag36h11 voxel** (`victim_0..3`, via `scripts/generate_apriltag_models.py` — boîtes colorées + quiet-zone blanche, compatibles Ogre2/Mesa) placés statiquement dans `rescue_arena.sdf`, `apriltag_ros` (`decimate 1.0`) + bridge `camera_info` câblés. **Nav2 recovery réactivée** (spin/backup → un robot coincé se dégage). Tout intégré dans `run_demo_tb4.sh` (étapes 7b/8). **Validée end-to-end sur le vrai robot** (headless, GPU) : les **4 victimes** (`id 0..3`) détectées par l'OAK-D du TB4 → `apriltag_ros` → `victim_registry` → `results/victims.json` (une par run spawn-face) ; **l'exploration autonome atteint 91 % de couverture et trouve une victime toute seule**. Rendu GPU (D3D12, ~23× plus rapide) + `.wslconfig` rendent les longs runs stables — voir [`docs/running_on_wsl.md`](docs/running_on_wsl.md), `ERRORS_AND_FIXES.md` #29/#32/#33. _Enchaîner les 4 victimes en une seule patrouille autonome continue demande un tuning Nav2 point-à-point plus poussé — polish de démo, visé pour L18._ |
 | L17    |  TODO  | Bonus : comparatif frontier-greedy vs information-gain, benchmarks lancés, plots prêts                   |
 | L18    |  TODO  | Démo live (10 min) + rapport rendu (≤ 10 pages, PDF)                                                     |
 

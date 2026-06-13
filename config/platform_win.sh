@@ -22,13 +22,23 @@ export IA712_PLATFORM_NAME="win-wsl2-x86_64"
 # wheel controllers never load and /turtlebot4/odom stays silent. CycloneDDS
 # discovers reliably on WSL. Install: sudo apt install ros-humble-rmw-cyclonedds-cpp.
 # (Set before any ROS process so the ign gazebo plugin inherits it too.)
-export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
+#
+# GUARD: only select CycloneDDS if it is actually installed. Otherwise every node
+# dies at startup with "RMW implementation not installed (rmw_cyclonedds_cpp)" —
+# fall back to the always-present Fast-RTPS so the demo still runs (less reliable
+# WSL discovery, but functional). See docs/ERRORS_AND_FIXES.md #32.
+if [ -f /opt/ros/humble/lib/librmw_cyclonedds_cpp.so ]; then
+  export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_cyclonedds_cpp}"
 
-# Pin CycloneDDS to the loopback interface. Everything runs on this single WSL
-# host, and WSL's external NIC has flaky multicast, which makes node discovery
-# intermittent (e.g. lifecycle_manager never finds planner_server -> Nav2 never
-# activates). Loopback is deterministic and reliable for all-local discovery.
-export CYCLONEDDS_URI="${CYCLONEDDS_URI:-<CycloneDDS><Domain><General><Interfaces><NetworkInterface name=\"lo\" multicast=\"true\"/></Interfaces></General></Domain></CycloneDDS>}"
+  # Pin CycloneDDS to the loopback interface. Everything runs on this single WSL
+  # host, and WSL's external NIC has flaky multicast, which makes node discovery
+  # intermittent (e.g. lifecycle_manager never finds planner_server -> Nav2 never
+  # activates). Loopback is deterministic and reliable for all-local discovery.
+  export CYCLONEDDS_URI="${CYCLONEDDS_URI:-<CycloneDDS><Domain><General><Interfaces><NetworkInterface name=\"lo\" multicast=\"true\"/></Interfaces></General></Domain></CycloneDDS>}"
+else
+  echo "[platform_win] rmw_cyclonedds_cpp absent → fallback Fast-RTPS (install ros-humble-rmw-cyclonedds-cpp pour une découverte WSL plus fiable)" >&2
+  export RMW_IMPLEMENTATION="${RMW_IMPLEMENTATION:-rmw_fastrtps_cpp}"
+fi
 
 # --- Render engine ---
 # Some WSLg machines expose OpenGL only through the Mesa *D3D12* driver

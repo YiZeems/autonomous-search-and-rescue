@@ -19,7 +19,12 @@ find_turtlebot4_bringup_package() {
   fi
 
   for pkg in turtlebot4_ignition_bringup turtlebot4_gz_bringup; do
-    if ros2 pkg list | grep -qx "${pkg}"; then
+    # Filesystem check first (instant, robust), then `ros2 pkg prefix`.
+    # NOT `ros2 pkg list | grep`: that rebuilds the whole ament index and was
+    # observed to flake right after a heavy ROS session (stale daemon / cold
+    # index), wrongly reporting the package as missing although it is installed.
+    if [ -d "/opt/ros/humble/share/${pkg}" ] \
+       || ros2 pkg prefix "${pkg}" >/dev/null 2>&1; then
       echo "${pkg}"
       return 0
     fi

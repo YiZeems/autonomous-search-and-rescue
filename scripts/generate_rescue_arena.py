@@ -4,13 +4,15 @@
 Design goals for the IA712 project:
   - 12x12 m "collapsed building": 4 rooms + a cross corridor with doorways, so
     the robot has somewhere to explore and SLAM has real walls to map.
-  - Built ONLY from box/cylinder primitives — no external meshes. This renders
-    correctly under software GL (Parallels llvmpipe) AND is detected by the
-    gpu_lidar, unlike mesh-heavy worlds (see docs/ERRORS_AND_FIXES.md #10).
+  - Built from box primitives + static AprilTag model includes — no external
+    meshes. This renders correctly under software GL (llvmpipe) AND is detected
+    by the gpu_lidar, unlike mesh-heavy worlds (see docs/ERRORS_AND_FIXES.md #10).
   - Origin (0,0) is kept clear (central corridor) so the robot never spawns
     embedded in a wall.
-  - Scattered "rubble" boxes (obstacles) + red "victim" cylinders (targets for
-    the victim detector / markers in RViz).
+  - Scattered "rubble" boxes (obstacles) + 4 AprilTag victims (one per room),
+    placed on the outer walls at OAK-D camera height so apriltag_ros detects
+    them. This world is the single source of truth for victim placement;
+    generate_apriltag_models.py only builds the tag model assets it references.
   - physics block + shadows OFF (software-renderer stability).
 
 Run:  python3 scripts/generate_rescue_arena.py
@@ -32,19 +34,19 @@ WALLS = [
     (-A, -A,  A, -A),     # south
     ( A, -A,  A,  A),     # east
     (-A, -A, -A,  A),     # west
-    # --- divider at y=2 (north rooms / corridor), doorways near x=-3 and x=+3 ---
-    (-A, 2.0, -3.5, 2.0),
-    (-2.5, 2.0, 2.5, 2.0),
-    (3.5, 2.0, A, 2.0),
+    # --- divider at y=2 (north rooms / corridor), WIDE doorways near x=-3 and x=+3 ---
+    (-A, 2.0, -3.9, 2.0),
+    (-2.1, 2.0, 2.1, 2.0),
+    (3.9, 2.0, A, 2.0),
     # --- divider at y=-2 (south rooms / corridor), doorways near x=-0.5 and x=+0.5 ---
     (-A, -2.0, -1.0, -2.0),
     (1.0, -2.0, A, -2.0),
-    # --- vertical split of the north band (x=0), doorway at y in [3.5, 4.5] ---
-    (0.0, 2.0, 0.0, 3.5),
-    (0.0, 4.5, 0.0, A),
-    # --- vertical split of the south band (x=0), doorway at y in [-4.5, -3.5] ---
-    (0.0, -A, 0.0, -4.5),
-    (0.0, -3.5, 0.0, -2.0),
+    # --- vertical split of the north band (x=0), WIDE doorway at y in [3.2, 4.8] ---
+    (0.0, 2.0, 0.0, 3.2),
+    (0.0, 4.8, 0.0, A),
+    # --- vertical split of the south band (x=0), WIDE doorway at y in [-4.8, -3.2] ---
+    (0.0, -A, 0.0, -4.8),
+    (0.0, -3.2, 0.0, -2.0),
 ]
 
 # Rubble obstacles: (x, y, size) cubes.
@@ -56,12 +58,16 @@ RUBBLE = [
     (-4.6, 0.0, 0.3),
 ]
 
-# Victims: red cylinders (x, y) — one per room (NE, SW, NW, SE).
-VICTIMS = [
-    (4.6, 4.6),
-    (-4.6, -4.6),
-    (-4.6, 4.6),
-    (4.6, -4.6),
+# AprilTag victims: (id, x, y, z, roll_deg, pitch_deg, yaw_deg), one per room.
+# Poses MUST match scripts/generate_apriltag_models.py (which only builds the
+# tag model assets these <include> blocks reference).
+# roll=+90 -> tag faces south (mounted on a north wall, y>0);
+# roll=-90 -> tag faces north (mounted on a south wall, y<0).
+VICTIM_TAGS = [
+    (0,  4.6,  5.924, 0.28,  90, 0, 0),   # NE room, north wall, facing south
+    (1, -4.6, -5.924, 0.28, -90, 0, 0),   # SW room, south wall, facing north
+    (2, -4.6,  5.924, 0.28,  90, 0, 0),   # NW room, north wall, facing south
+    (3,  4.6, -5.924, 0.28, -90, 0, 0),   # SE room, south wall, facing north
 ]
 
 
@@ -85,24 +91,19 @@ def _box_link(name: str, cx: float, cy: float, cz: float,
         </model>"""
 
 
-def _cylinder_link(name: str, cx: float, cy: float, radius: float,
-                   height: float, rgba: str) -> str:
+def _tag_include(tag_id: int, name: str, x: float, y: float, z: float,
+                 roll_deg: float, pitch_deg: float, yaw_deg: float) -> str:
+    import math
+
+    r = math.radians(roll_deg)
+    p = math.radians(pitch_deg)
+    yw = math.radians(yaw_deg)
     return f"""
-        <model name='{name}'>
-            <static>1</static>
-            <pose>{cx:.3f} {cy:.3f} {height/2:.3f} 0 0 0</pose>
-            <link name='link'>
-                <collision name='collision'>
-                    <geometry><cylinder><radius>{radius:.3f}</radius><length>{height:.3f}</length></cylinder></geometry>
-                </collision>
-                <visual name='visual'>
-                    <geometry><cylinder><radius>{radius:.3f}</radius><length>{height:.3f}</length></cylinder></geometry>
-                    <material>
-                        <ambient>{rgba}</ambient><diffuse>{rgba}</diffuse>
-                    </material>
-                </visual>
-            </link>
-        </model>"""
+        <include>
+            <uri>model://apriltag_36h11_{tag_id:02d}</uri>
+            <name>{name}</name>
+            <pose>{x:.4f} {y:.4f} {z:.4f} {r:.4f} {p:.4f} {yw:.4f}</pose>
+        </include>"""
 
 
 def _wall_model(idx: int, x1: float, y1: float, x2: float, y2: float) -> str:
@@ -123,17 +124,23 @@ def build_world() -> str:
         parts.append(_wall_model(i, x1, y1, x2, y2))
     for i, (x, y, s) in enumerate(RUBBLE):
         parts.append(_box_link(f"rubble_{i}", x, y, s / 2.0, s, s, s, "0.45 0.32 0.2 1"))
-    for i, (x, y) in enumerate(VICTIMS):
-        parts.append(_cylinder_link(f"victim_{i}", x, y, 0.18, 0.4, "0.85 0.1 0.1 1"))
+    parts.append("\n        <!-- AprilTag victims (one per room) -->")
+    for tag_id, x, y, z, roll, pitch, yaw in VICTIM_TAGS:
+        parts.append(_tag_include(tag_id, f"victim_{tag_id}", x, y, z, roll, pitch, yaw))
     bodies = "".join(parts)
     return f"""<?xml version="1.0"?>
 <!-- Auto-generated by scripts/generate_rescue_arena.py — do not edit by hand. -->
 <sdf version='1.8'>
     <world name='rescue_arena'>
         <physics name='1ms' type='ignored'>
-            <max_step_size>0.003</max_step_size>
+            <!-- Coarser step (0.01 vs 0.001 default / 0.003 prev) = ~3x fewer
+                 physics iterations -> much less CPU under software GL on WSL.
+                 Safe for the slow diff-drive TB4; Nav2/SLAM don't need fine
+                 physics. real_time_factor=1 keeps realtime (no slowdown);
+                 if the host still can't keep up, RTF drops gracefully. -->
+            <max_step_size>0.01</max_step_size>
             <real_time_factor>1</real_time_factor>
-            <real_time_update_rate>1000</real_time_update_rate>
+            <real_time_update_rate>100</real_time_update_rate>
         </physics>
         <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system' />
         <plugin name='ignition::gazebo::systems::UserCommands' filename='ignition-gazebo-user-commands-system' />
@@ -176,7 +183,7 @@ def main() -> None:
         / "ros2_ws" / "src" / "rescue_world" / "worlds" / "rescue_arena.sdf"
     )
     out.write_text(build_world(), encoding="utf-8")
-    print(f"wrote {out}  ({len(WALLS)} walls, {len(RUBBLE)} rubble, {len(VICTIMS)} victims)")
+    print(f"wrote {out}  ({len(WALLS)} walls, {len(RUBBLE)} rubble, {len(VICTIM_TAGS)} victims)")
 
 
 if __name__ == "__main__":

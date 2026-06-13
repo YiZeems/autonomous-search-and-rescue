@@ -5,17 +5,15 @@ from rescue_robot.utils.node_runner import run_node
 
 
 class VictimDetectorNode(Node):
-    """Victim detection scaffold.
+    """Victim detection scaffold — SUPERSEDED by victim_registry_node.
 
-    MVP plan:
-    - subscribe to /camera/image_raw and /camera/camera_info;
-    - detect a colored cylinder or ArUco/AprilTag marker;
-    - estimate pose in the camera frame;
-    - transform camera_frame -> map with tf2;
-    - publish /victims_map as PoseArray.
-
-    Current scaffold publishes an empty PoseArray periodically so downstream
-    results/visualization modules can be tested before the detector is ready.
+    The real victim pipeline is implemented in
+    ``rescue_robot.detection.victim_registry_node`` (apriltag_ros → TF2
+    projection camera→victim_<id>→map → /victims_map + results/victims.json,
+    validated end-to-end at L16). This node is kept only as a lightweight test
+    fixture: it publishes an empty PoseArray periodically so the downstream
+    results/visualization modules can be exercised without the full perception
+    stack (Gazebo + apriltag_ros) running.
     """
 
     def __init__(self):
@@ -26,7 +24,8 @@ class VictimDetectorNode(Node):
         self.publisher = self.create_publisher(PoseArray, output_topic, 10)
         self.timer = self.create_timer(2.0, self.publish_empty)
         self.get_logger().info(
-            'Victim detector scaffold started. TODO: implement camera + tf2 detection pipeline.'
+            'Victim detector scaffold (superseded by victim_registry_node) — '
+            'publishing empty /victims_map for downstream tests only.'
         )
 
     def publish_empty(self):

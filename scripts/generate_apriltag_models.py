@@ -1,74 +1,103 @@
 #!/usr/bin/env python3
-"""Generate Ignition Gazebo SDF models for AprilTag "victims" (tag36h11, IDs 0-4).
+"""Generate AprilTag (tag36h11) Gazebo models using colored-box voxels.
 
-Each model is a thin vertical panel textured with a real tag36h11 marker (a white
-quiet-zone border is added so apriltag_ros detects it reliably). The IDs and the
-side length match rescue_bringup/config/apriltag_tags.yaml (victim_0..4, 16 cm).
+PBR albedo_map textures are silently ignored by Ogre2+Mesa/D3D12 on WSL2 — the
+panel renders as a blank white rectangle and apriltag_ros sees nothing.
+Instead, each tag is built from 10×10 = 100 tiny black/white box visuals using
+plain <ambient>/<diffuse> colors, which render correctly on all Ogre2 backends
+(same mechanism as the rubble blocks in the scene).
 
-Run once (no ROS / no Gazebo needed):
+Model naming follows the apriltag_36h11_00 … 03 convention.
+This script ONLY builds the tag model assets (models/apriltag_36h11_0X/). Victim
+PLACEMENT in the world is owned by scripts/generate_rescue_arena.py, whose
+rescue_arena.sdf <include>s these models against an outer wall at camera height
+(OAK-D ≈ 0.47 m → tag at 0.28 m, comfortably in the ±27° vertical FOV).
 
+Usage:
     python3 scripts/generate_apriltag_models.py
-
-Outputs under ros2_ws/src/rescue_world/models/apriltag_36h11_0<ID>/ :
-    model.config
-    model.sdf
-    materials/textures/tag36_11_0000<ID>.png
-
-Then they can be <include>d in a world, or spawned with `ros2 run ros_gz_sim create`.
+    ./scripts/run.sh build
 """
 from __future__ import annotations
+import sys
+from pathlib import Path
 
-import pathlib
+try:
+    import cv2
+    import numpy as np
+except ImportError:
+    sys.exit("pip install opencv-python numpy")
 
-import cv2
-import numpy as np
+REPO_ROOT  = Path(__file__).resolve().parents[1]
+MODELS_DIR = REPO_ROOT / "ros2_ws/src/rescue_world/models"
 
-# tag side length in metres — keep in sync with apriltag_tags.yaml (size: 0.16)
-TAG_SIZE_M = 0.16
-TAG_IDS = [0, 1, 2, 3, 4]
-# texture resolution: marker rendered big, then a white quiet zone added around it
-MARKER_PX = 720
-QUIET_FRAC = 0.18  # white border = 18 % of the marker size on each side
+TAG_FAMILY   = cv2.aruco.DICT_APRILTAG_36h11
+TAG_SIZE_M   = 0.16
+TAG_IDS      = [0, 1, 2, 3]
+TAG_NAME_FMT = "apriltag_36h11_{:02d}"   # apriltag_36h11_00 … 03
+GRID_N       = 10
 
-HERE = pathlib.Path(__file__).resolve().parent
-MODELS_DIR = HERE.parent / "ros2_ws" / "src" / "rescue_world" / "models"
 
-MODEL_CONFIG = """<?xml version="1.0"?>
-<model>
-  <name>apriltag_36h11_{id:02d}</name>
-  <version>1.0</version>
-  <sdf version="1.8">model.sdf</sdf>
-  <description>AprilTag tag36h11 id {id} (victim_{id}) — 16 cm panel for IA712 rescue.</description>
-</model>
-"""
+def _tag_cells(tag_id: int) -> list[list[bool]]:
+    """Return GRID_N×GRID_N grid: True=black, False=white.
 
-# Thin vertical panel in the X-Z plane (thin along Y), so the tag faces +/-Y and a
-# robot driving past sees it. PBR albedo_map carries the tag texture.
-MODEL_SDF = """<?xml version="1.0"?>
-<sdf version="1.8">
-  <model name="apriltag_36h11_{id:02d}">
-    <static>true</static>
-    <link name="link">
-      <visual name="visual">
-        <geometry>
-          <box><size>{size} 0.008 {size}</size></box>
-        </geometry>
+    Layout: a 1-cell WHITE quiet-zone ring (the AprilTag detector needs it to
+    locate the tag's outer black border) around the native (markerSize+2)=8×8
+    tag36h11 image. GRID_N is therefore 10.
+
+    IMPORTANT: do NOT cv2.resize the 200px marker straight to 10×10 — that maps
+    10 sample points onto the 8 real cells, duplicating two columns/rows and
+    distorting the code so the detector rejects it (verified: such a tag renders
+    fine but is undetectable). Downsample to the marker's true 8×8, then pad with
+    the white ring.
+    """
+    aruco_dict = cv2.aruco.getPredefinedDictionary(TAG_FAMILY)
+    img = np.zeros((200, 200), dtype=np.uint8)
+    if hasattr(cv2.aruco, 'generateImageMarker'):
+        cv2.aruco.generateImageMarker(aruco_dict, tag_id, 200, img, 1)
+    else:
+        cv2.aruco.drawMarker(aruco_dict, tag_id, 200, img, 1)
+    marker_n = aruco_dict.markerSize + 2          # 6 data bits + black border = 8
+    marker = cv2.resize(img, (marker_n, marker_n), interpolation=cv2.INTER_NEAREST)
+    grid = np.full((GRID_N, GRID_N), 255, dtype=np.uint8)   # white quiet-zone ring
+    off = (GRID_N - marker_n) // 2                # = 1 for GRID_N=10
+    grid[off:off + marker_n, off:off + marker_n] = marker
+    return [[bool(grid[r, c] < 128) for c in range(GRID_N)] for r in range(GRID_N)]
+
+
+def generate_model_sdf(tag_id: int) -> str:
+    tag_name = TAG_NAME_FMT.format(tag_id)
+    cells  = _tag_cells(tag_id)
+    cell_w = TAG_SIZE_M / GRID_N
+    half   = TAG_SIZE_M / 2.0
+    gap    = 5e-5
+
+    visuals = []
+    for row, row_cells in enumerate(cells):
+        for col, is_black in enumerate(row_cells):
+            color = "0 0 0 1" if is_black else "1 1 1 1"
+            x    = -half + (col + 0.5) * cell_w
+            y    =  half - (row + 0.5) * cell_w
+            side = cell_w - gap
+            visuals.append(f"""
+      <visual name="c{row:02d}{col:02d}">
+        <pose>{x:.6f} {y:.6f} 0 0 0 0</pose>
+        <geometry><box><size>{side:.6f} {side:.6f} 0.002</size></box></geometry>
         <material>
-          <ambient>1 1 1 1</ambient>
-          <diffuse>1 1 1 1</diffuse>
+          <ambient>{color}</ambient>
+          <diffuse>{color}</diffuse>
           <specular>0 0 0 1</specular>
-          <pbr>
-            <metal>
-              <albedo_map>materials/textures/tag36_11_{id:05d}.png</albedo_map>
-              <metalness>0.0</metalness>
-              <roughness>1.0</roughness>
-            </metal>
-          </pbr>
         </material>
-      </visual>
+      </visual>""")
+
+    cells_xml = ''.join(visuals)
+    return f"""<?xml version="1.0"?>
+<sdf version="1.8">
+  <model name="{tag_name}">
+    <static>true</static>
+    <link name="link">{cells_xml}
       <collision name="collision">
         <geometry>
-          <box><size>{size} 0.008 {size}</size></box>
+          <box><size>{TAG_SIZE_M} {TAG_SIZE_M} 0.003</size></box>
         </geometry>
       </collision>
     </link>
@@ -77,35 +106,27 @@ MODEL_SDF = """<?xml version="1.0"?>
 """
 
 
-def make_texture(tag_id: int) -> np.ndarray:
-    """tag36h11 marker with a white quiet-zone border, as a BGR image."""
-    dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_APRILTAG_36h11)
-    marker = cv2.aruco.generateImageMarker(dictionary, tag_id, MARKER_PX)  # 8-bit, 1 ch
-    border = int(MARKER_PX * QUIET_FRAC)
-    canvas = np.full(
-        (MARKER_PX + 2 * border, MARKER_PX + 2 * border), 255, dtype=np.uint8
-    )
-    canvas[border:border + MARKER_PX, border:border + MARKER_PX] = marker
-    return cv2.cvtColor(canvas, cv2.COLOR_GRAY2BGR)
-
-
 def main() -> None:
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+
     for tag_id in TAG_IDS:
-        model_name = f"apriltag_36h11_{tag_id:02d}"
-        model_dir = MODELS_DIR / model_name
-        tex_dir = model_dir / "materials" / "textures"
-        tex_dir.mkdir(parents=True, exist_ok=True)
+        tag_name  = TAG_NAME_FMT.format(tag_id)
+        model_dir = MODELS_DIR / tag_name
+        model_dir.mkdir(exist_ok=True)
+        (model_dir / "model.sdf").write_text(generate_model_sdf(tag_id))
+        (model_dir / "model.config").write_text(f"""<?xml version="1.0"?>
+<model>
+  <name>{tag_name}</name>
+  <version>1.0</version>
+  <sdf version="1.8">model.sdf</sdf>
+  <description>AprilTag tag36h11 ID {tag_id} — colored-box voxels (WSL2/Ogre2 safe)</description>
+</model>
+""")
+        print(f"  model {tag_name}  ({GRID_N}x{GRID_N} = {GRID_N*GRID_N} cells)")
 
-        tex_path = tex_dir / f"tag36_11_{tag_id:05d}.png"
-        cv2.imwrite(str(tex_path), make_texture(tag_id))
-
-        (model_dir / "model.config").write_text(MODEL_CONFIG.format(id=tag_id))
-        (model_dir / "model.sdf").write_text(
-            MODEL_SDF.format(id=tag_id, size=TAG_SIZE_M)
-        )
-        print(f"  {model_name}: texture {tex_path.name} + model.sdf/model.config")
-
-    print(f"Done — {len(TAG_IDS)} AprilTag models under {MODELS_DIR}")
+    print("\nDone — tag model assets written. Victim PLACEMENT is owned by "
+          "scripts/generate_rescue_arena.py, whose rescue_arena.sdf already "
+          "<include>s these models. Rebuild: ./scripts/run.sh build")
 
 
 if __name__ == "__main__":
