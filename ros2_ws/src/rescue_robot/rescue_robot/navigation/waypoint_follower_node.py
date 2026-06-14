@@ -15,14 +15,18 @@ import math
 import threading
 import time
 
+import rclpy
 import yaml
 from action_msgs.msg import GoalStatus
 from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
+from nav_msgs.msg import OccupancyGrid
 from rclpy.action import ActionClient
 from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 
+from rescue_robot.exploration.frontier_search import nearest_free_cell
 from rescue_robot.utils.node_runner import run_node
 
 
@@ -33,10 +37,30 @@ class WaypointFollowerNode(Node):
         self.declare_parameter("waypoints_file", "")
         self.declare_parameter("loop", False)
         self.declare_parameter("goal_timeout_sec", 150.0)
+        # Snap each waypoint to the nearest FREE map cell within this radius (cells)
+        # before sending it to Nav2. A pose deep in a room corner often lands in
+        # still-unknown / wall-inflated space and Nav2 rejects it instantly; the
+        # snap pulls it onto the closest reachable free cell (same trick as the
+        # frontier explorer). 0 disables snapping.
+        self.declare_parameter("goal_snap_radius", 16)
+        # Pause facing the wall at each reached waypoint so apriltag_ros has time to
+        # lock the tag (the waypoint already faces the wall). 0 disables.
+        self.declare_parameter("dwell_sec", 4.0)
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._loop = self.get_parameter("loop").value
         self._timeout = self.get_parameter("goal_timeout_sec").value
+        self._snap_radius = int(self.get_parameter("goal_snap_radius").value)
+        self._dwell = float(self.get_parameter("dwell_sec").value)
+
+        # Latest map for goal snapping (SLAM publishes /map latched: transient-local).
+        self._map = None
+        map_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+        self.create_subscription(OccupancyGrid, "/map", self._on_map, map_qos)
 
         waypoints_file = self.get_parameter("waypoints_file").value
         self._waypoints = self._load_waypoints(waypoints_file)
@@ -83,16 +107,29 @@ class WaypointFollowerNode(Node):
             return
 
         while True:
+            n = len(self._waypoints)
+            failed = []
             for i, wp in enumerate(self._waypoints):
                 self.get_logger().info(
-                    f"Navigating to waypoint {i+1}/{len(self._waypoints)}: "
+                    f"Navigating to waypoint {i+1}/{n}: "
                     f"x={wp['x']:.2f} y={wp['y']:.2f} yaw={wp.get('yaw', 0.0):.2f}"
                 )
-                success = self._send_goal(wp)
-                if success:
+                if self._goto(wp):
                     self.get_logger().info(f"Waypoint {i+1} reached.")
                 else:
-                    self.get_logger().warn(f"Waypoint {i+1} failed or timed out — continuing.")
+                    self.get_logger().warn(f"Waypoint {i+1} failed — retry at end.")
+                    failed.append((i, wp))
+
+            # 2nd pass on the failures: the robot is now elsewhere (often closer / less
+            # boxed-in), so a goal unreachable on pass 1 frequently succeeds on pass 2.
+            # Each failed waypoint = a missed victim, so retrying is what lets the patrol
+            # catch all 4 instead of 2-3.
+            for i, wp in failed:
+                self.get_logger().info(f"Retry waypoint {i+1}/{n} (2nd pass)...")
+                if self._goto(wp):
+                    self.get_logger().info(f"Waypoint {i+1} reached on retry.")
+                else:
+                    self.get_logger().warn(f"Waypoint {i+1} failed on retry too.")
 
             self.get_logger().info("All waypoints done.")
             if not self._loop:
@@ -100,9 +137,33 @@ class WaypointFollowerNode(Node):
             self.get_logger().info("Looping back to first waypoint...")
             time.sleep(2.0)
 
+        # Patrol complete (loop=false) → shut the node down so `ros2 launch` exits and
+        # run_demo_tb4.sh proceeds to the final map-save/annotate PROMPTLY, instead of
+        # lingering until the global timeout (extra minutes during which memory keeps
+        # growing → OOM that starved SLAM before the map could be saved).
+        self.get_logger().info("Patrol complete — shutting down for clean finalization.")
+        try:
+            rclpy.shutdown()
+        except Exception:
+            pass
+
+    def _goto(self, wp: dict) -> bool:
+        """Navigate to wp; on success, dwell so apriltag can lock the wall tag."""
+        if not self._send_goal(wp):
+            return False
+        if self._dwell > 0.0:
+            self.get_logger().info(f"  dwell {self._dwell:.0f}s (let apriltag lock the tag)")
+            time.sleep(self._dwell)
+        return True
+
     def _send_goal(self, wp: dict) -> bool:
+        sx, sy = self._snap(float(wp["x"]), float(wp["y"]))
+        if abs(sx - float(wp["x"])) > 1e-3 or abs(sy - float(wp["y"])) > 1e-3:
+            self.get_logger().info(
+                f"  goal snapped ({wp['x']:.2f},{wp['y']:.2f}) → ({sx:.2f},{sy:.2f})"
+            )
         goal = NavigateToPose.Goal()
-        goal.pose = self._make_pose(wp)
+        goal.pose = self._make_pose({"x": sx, "y": sy, "yaw": wp.get("yaw", 0.0)})
 
         future = self._client.send_goal_async(goal)
 
@@ -134,6 +195,26 @@ class WaypointFollowerNode(Node):
             return False
 
         return result_future.result().status == GoalStatus.STATUS_SUCCEEDED
+
+    def _on_map(self, msg: OccupancyGrid):
+        self._map = msg
+
+    def _snap(self, x: float, y: float):
+        """Return (x, y) snapped to the nearest free map cell (or unchanged)."""
+        m = self._map
+        if m is None or self._snap_radius <= 0 or m.info.resolution <= 0.0:
+            return x, y
+        res = m.info.resolution
+        ox = m.info.origin.position.x
+        oy = m.info.origin.position.y
+        free = nearest_free_cell(
+            m.data, m.info.width, m.info.height,
+            (x - ox) / res, (y - oy) / res, self._snap_radius,
+        )
+        if free is None:
+            return x, y
+        fx, fy = free
+        return ox + (fx + 0.5) * res, oy + (fy + 0.5) * res
 
     def _make_pose(self, wp: dict) -> PoseStamped:
         pose = PoseStamped()

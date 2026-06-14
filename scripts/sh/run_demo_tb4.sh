@@ -531,8 +531,19 @@ if [ "${IA712_BT:-1}" = "1" ]; then
     fi
 fi
 
+# ── Create3 safety_override : la base TB4 a des "reflexes" de sécurité qui
+#    stoppent le robot (REFLEX_STUCK) et font échouer Nav2 ("Failed to make
+#    progress") sur les goals serrés (doorways, poses près des murs). On passe
+#    safety_override=full pour laisser Nav2 piloter librement. Le node peut être
+#    /motion_control ou /turtlebot4/motion_control selon le bringup -> on tente les deux.
+for mc in /motion_control /turtlebot4/motion_control; do
+    ros2 param set "${mc}" safety_override full >/dev/null 2>&1 \
+        && { echo "  safety_override=full sur ${mc}"; break; }
+done
+
 # ── ÉTAPE 8 : Navigation — exploration autonome (frontière) OU waypoints.
 #    IA712_EXPLORE=1  -> le robot explore tout seul (frontier_explorer_node)
+#    IA712_HYBRID=1   -> explore puis patrouille (garantit les victimes)
 #    sinon            -> suit le parcours de waypoints prédéfini.
 echo ""
 echo "[demo-tb4] ╔══════════════════════════════════════════╗"
@@ -541,7 +552,58 @@ echo "[demo-tb4] ║   Ctrl+C pour arrêter proprement         ║"
 echo "[demo-tb4] ╚══════════════════════════════════════════╝"
 echo ""
 
-if [ "${IA712_EXPLORE:-0}" = "1" ]; then
+if [ "${IA712_HYBRID:-0}" = "1" ]; then
+    # ── Mode HYBRIDE (L18) : exploration autonome pour la couverture, PUIS
+    #    patrouille de waypoints orientés face aux murs pour GARANTIR les victimes
+    #    dans un seul run continu (cf. TP10 followWaypoints + codex §8).
+    EXPLORE_SECS="${IA712_EXPLORE_SECS:-300}"
+    COV_TARGET="${IA712_EXPLORE_COV:-0.85}"
+    _RES="${IA712_RESULTS_DIR:-${REPO_ROOT}/results}"
+    echo "[8/8] HYBRIDE phase 1/2 : exploration autonome (frontier) jusqu'à cov≥${COV_TARGET} ou ${EXPLORE_SECS}s"
+    # ── ANTI-FUITE GAZEBO ── L'exploration navigue au LIDAR ; la caméra ne sert qu'à
+    # la patrouille (détection). Le rendu caméra du serveur Gazebo FUIT ~35 MB/s (bug
+    # Ogre2/D3D12+WSL). On coupe donc le bridge caméra pendant l'explore : avec
+    # always_on=0 le capteur n'a plus d'abonné → ne rend plus → la fuite n'accumule pas
+    # pendant la phase la plus longue. Bridge relancé avant la patrouille (phase 2).
+    kill "${BRIDGE_PID}" 2>/dev/null \
+        && echo "  caméra OFF pendant l'exploration (anti-fuite rendu Gazebo)"
+    ros2 launch "${EXP_LAUNCH}" \
+        use_sim_time:=true \
+        base_frame:="${NAMESPACE}/base_link" \
+        >"${LOGDIR}/exploration.log" 2>&1 &
+    EXP_PID=$!
+    _s=0
+    while kill -0 "${EXP_PID}" 2>/dev/null && [ "${_s}" -lt "${EXPLORE_SECS}" ]; do
+        _cov=$(tail -1 "${_RES}/coverage_over_time.csv" 2>/dev/null | cut -d, -f2)
+        if [ -n "${_cov}" ] && awk "BEGIN{exit !(${_cov} >= ${COV_TARGET})}" 2>/dev/null; then
+            echo "  couverture ${_cov} ≥ ${COV_TARGET} atteinte (${_s}s) → patrouille"
+            break
+        fi
+        sleep 5; _s=$(( _s + 5 ))
+    done
+    echo "[8/8] HYBRIDE : fin phase 1 (couverture) → arrêt de l'explorateur"
+    pkill -9 -f "frontier_explorer" 2>/dev/null || true
+    kill -9 "${EXP_PID}" 2>/dev/null || true
+    sleep 3
+    # Caméra ON pour la patrouille (détection victimes) : on relance le bridge.
+    echo "  caméra ON (patrouille) — relance du bridge + ré-abonnement apriltag"
+    ros2 run ros_gz_bridge parameter_bridge \
+        "${CAM_IGN}@sensor_msgs/msg/Image[ignition.msgs.Image" \
+        "${CAM_INFO_IGN}@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo" \
+        --ros-args \
+        -r "${CAM_IGN}:=/camera/image_raw" \
+        -r "${CAM_INFO_IGN}:=/camera/camera_info" \
+        >"${LOGDIR}/cam2.log" 2>&1 &
+    BRIDGE_PID=$!
+    sleep 5
+    echo "[8/8] HYBRIDE phase 2/2 : patrouille victimes (waypoints face-mur) → ${WAYPOINTS_FILE##*/}"
+    ros2 launch "${WP_LAUNCH}" \
+        waypoints_file:="${WAYPOINTS_FILE}" \
+        loop:=false \
+        use_sim_time:=true \
+        >"${LOGDIR}/wp.log" 2>&1 &
+    WP_PID=$!
+elif [ "${IA712_EXPLORE:-0}" = "1" ]; then
     echo "[8/8] Exploration autonome (frontier_explorer_node)"
     ros2 launch "${EXP_LAUNCH}" \
         use_sim_time:=true \
@@ -593,6 +655,18 @@ WP_REACHED=$(grep -c "reached\."          "${LOGDIR}/wp.log" 2>/dev/null || echo
 WP_FAILED=$(grep -c "failed or timed out" "${LOGDIR}/wp.log" 2>/dev/null || echo 0)
 echo "  Atteints : ${WP_REACHED}"
 echo "  Échecs   : ${WP_FAILED}"
+
+# ── Carte finale annotée avec les victimes (livrable L18) ────────────
+# SLAM/Nav2 sont encore vivants ici → /map publié. On sauve la carte puis on
+# l'annote depuis victims.json (vrais IDs AprilTag) via scripts/annotate_map.py.
+RESULTS_DIR="${IA712_RESULTS_DIR:-${REPO_ROOT}/results}"
+echo ""
+echo "[final] Carte finale + annotation victimes → ${RESULTS_DIR}/"
+ros2 run nav2_map_server map_saver_cli -f "${RESULTS_DIR}/final_map" \
+    --ros-args -p save_map_timeout:=10.0 >/dev/null 2>&1 \
+    && echo "  carte: final_map.{yaml,pgm}" \
+    || echo "  [WARN] map_saver_cli échoué (SLAM déjà arrêté ?)"
+python3 "${REPO_ROOT}/scripts/annotate_map.py" "${RESULTS_DIR}" 2>&1 | sed 's/^/  /' || true
 
 echo ""
 echo "Fichiers résultats : ${REPO_ROOT}/results/"

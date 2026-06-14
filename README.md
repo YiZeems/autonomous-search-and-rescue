@@ -374,7 +374,10 @@ Standalone scripts (from the repo root of the workspace): `scripts/sh/run_benchm
 
 This section is the **pedagogical record of the key decisions** behind `bl`, in
 `Problem → Decision → Why` form. It is the "lessons learned" backbone for the
-report. Each technical pitfall is detailed in [`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AND_FIXES.md).
+report. The **full French write-up** (with the L18 troubleshooting saga in
+`Problème → Investigation → Décision → Pourquoi` form) is in
+[`docs/parcours.md`](docs/parcours.md); each technical pitfall is detailed in
+[`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AND_FIXES.md).
 
 ### L13–L14 — Foundations
 - **4 ROS 2 packages** (`rescue_bringup` / `rescue_robot` / `rescue_world` / `rescue_decision`). *Why:* clear separation (launch vs autonomy vs worlds vs decision) so the team works in parallel.
@@ -405,8 +408,47 @@ report. Each technical pitfall is detailed in [`docs/ERRORS_AND_FIXES.md`](docs/
 - **SpinAndScan.** *Problem:* frontier goals point the camera along travel, so the OAK-D rarely faces the wall tags (explores but finds no victim). *Decision:* rotate in place after each reached goal to sweep the camera across the walls.
 - **Goal refinement.** *Problem:* a raw centroid sits on the explored/unknown boundary → Nav2 rejects it. *Decision:* snap the goal to the nearest **free** cell (`nearest_free_cell`) + skip near-zero-gain frontiers (`info_gain_min_gain`).
 
-### L18 — what remains
-Chaining all 4 victims in **one continuous autonomous run** + reliably reaching 90 % needs deeper **Nav2 point-to-point tuning** (reachability pre-check via `ComputePathToPose`, costmap/controller tuning). Each capability is individually validated; the integration polish is the last step.
+### L18 — continuous run & host stability (the troubleshooting saga)
+> Full French write-up, `Problème → Investigation → Décision → Pourquoi`, in
+> [`docs/parcours.md`](docs/parcours.md). Condensed here:
+
+**Host reboots under load — measure, don't guess.** Long GPU runs kept rebooting WSL.
+Two *wrong* leads were ruled out by measurement: **memory** (WSL used 5/19 GiB, host 12 GB
+free, VRAM 0.2/8 GB) and **Windows Update** (no pending update, pause had no effect). The
+event log showed the real causes: hardware bugchecks under load — **`0x116` VIDEO_TDR_FAILURE**,
+**`0x10e` VIDEO_MEMORY_MANAGEMENT**, **`0x101` CLOCK_WATCHDOG ×2** — plus graceful **1074**
+"unplanned" restarts that fire on their own (likely OEM/MSI, unfixable remotely as non-admin).
+*Decisions we control:* an **RTF knob** (`IA712_GZ_RT_RATE`, default 0.7 — fewer GPU/CPU cycles
+per real second, same *simulated* time so metrics are unchanged), **live RTF** via Gazebo's
+`set_physics` (slow a run without killing it), a lighter **`.wslconfig`** (`processors 16→10`,
+`memory 20→14 GB` for thermal headroom), and **resumable** benchmarks. *Host-side (admin):*
+NVIDIA Studio driver, `TdrDelay`, Balanced power plan + cooling.
+
+**4 victims in one continuous run — six stacked bugs, each fix exposed the next:**
+1. Patrol-alone → robot immobile: goals in **unmapped** space → **hybrid** (explore first to build the map, then patrol).
+2. Waypoints `(0, ±3.2)` landed **on the x=0 divider wall** → place them in validated **free space**.
+3. `Failed to make progress` → Create3 reflex → **`safety_override=full`** on `/turtlebot4/motion_control`.
+4. Deep-corner goals **rejected** (still-unknown cells at 93 %) → **goal-snapping** (`nearest_free_cell`) + **central** waypoints.
+5. Snap OK but cross-room goals still fail (`bt_navigator: Goal failed`) → **doorway routing** is structurally fragile → **pivot**.
+6. **Pivot to a full 360° SpinAndScan during exploration** (`spin_scan_duration 7→12 s`): the explorer already visits every room to map 93 %, so a complete sweep at each goal catches each wall tag regardless of arrival heading — far more robust than a rigid waypoint patrol.
+7. **Coverage root cause:** even the 360° spin caught only 1 victim and coverage stalled at 88 % — the robot **never enters the rooms**. `inflation_radius 0.30` + `cost_scaling 3.0` make near-wall cells costly, so NavFn hugs the corridors. **Lower `inflation_radius 0.30→0.25` + `cost_scaling 3.0→2.0`** (robot_radius 0.22 keeps a buffer) → the planner commits *into* the rooms → **coverage reaches 90 %+** (v5: 26 m driven vs 14 m).
+8. **Detection root cause:** at 93 % coverage, robot *inside* the rooms, still **0 victims** — apriltag got **0 images** (only `camera_info`), while `ign topic` showed Gazebo *was* rendering (320×240). The **RTF had collapsed to 0.05** → ~1.5 cam frames/wall-s → apriltag's sync window saw 0 pairs. So at low RTF the **GPU-rendered camera starves** while `camera_info` (metadata, no render) keeps flowing — the spin swept an empty image stream. *Fix:* **raise the RTF** (`IA712_GZ_RT_RATE 70→100`; safe now that crashes are gone). Two distinct root causes under bugs 1-6: Nav2 cost (coverage) and RTF-starved camera (detection). *(Best run measured: 93.5 % + 2 victims, real IDs.)*
+9. **OOM root cause — the Gazebo leak:** runs > ~10 min OOM because **`mem_profile.sh` proved Gazebo leaks ~35 MB/s** (Ogre2/D3D12+WSL render loop, per *wall*-second; irreducible — 8 Hz, RGB-only w/o depth+pointcloud, higher RTF all tested, no effect). The OOM **cut the patrol at 2/4 → only 3 victims**. *Fixes:* **(a)** render the camera **only during the patrol** — exploration runs on LIDAR, so `always_on=0` + kill the camera bridge in phase 1 and relaunch it for phase 2 → no render leak during the long phase → no OOM; **(b)** **retry failed waypoints** (2nd pass) so the patrol catches all 4 (each missed waypoint = a missed victim); **(c)** clean shutdown → map saved. 3 victims are reliable (across runs ids 0,1,2,3 are all detectable); these fixes target the 4th-in-one-run.
+
+**Algorithm roadmap to improve the *path actually driven* (CM9/CM10)** — see
+[`docs/parcours.md`](docs/parcours.md) §9. The real path = global planner + controller:
+- **Global planner (the path):** Dijkstra/**NavFn** (kept) vs **A\*/`SmacPlanner2D`** (CM9). *Measured
+  L18:* SmacPlanner2D **refuses to plan when the robot sits in inflated space** ("Starting point in
+  lethal space!") → robot froze at 60 % in this walled arena; **NavFn tolerates it → 88-96 %**, so NavFn
+  is the robust choice here. A real comparison result, not just textbook "A\* > Dijkstra". RRT = outlook.
+- **Controller (the tracking):** **DWB** (current) → **Regulated Pure Pursuit** (smoother for the
+  diff-drive TB4, fewer doorway `Failed to make progress`).
+- **Exploration:** greedy vs info_gain benchmarked (n=3); **RRT-exploration** as outlook.
+- *Most valuable next experiment:* benchmark **NavFn vs SmacPlanner2D** (path length, `time_to_90`).
+
+**Tooling bugs (instructive):** an inline `pkill -f "ign gazebo|…"` matched the **wrapper's own
+command line** and self-killed (→ clean up via `kill_sim.sh`); `rsyncDown_*_run` `--delete` wiped
+generated `experiments/` (→ `--exclude='experiments/'`, artifacts flow run→branch only).
 
 ---
 

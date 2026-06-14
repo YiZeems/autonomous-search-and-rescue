@@ -41,8 +41,12 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             "goal_timeout_sec",
-            default_value="60.0",
-            description="Seconds to wait for each NavigateToPose goal.",
+            default_value="180.0",
+            description="Seconds (WALL clock) to wait for each NavigateToPose goal. "
+            "60 s trop court (15 s sim à RTF 0.25), 120 s aussi (patrouille 0/4) ; 180 s "
+            "donne ~70 s sim pour traverser l'arène → v10 a fait 3 victimes. L'OOM des "
+            "runs longs vient de la FUITE caméra Gazebo (réglée à la source : oakd 8 Hz), "
+            "pas du timeout — donc on garde 180 s pour fiabiliser la détection.",
         ),
         DeclareLaunchArgument(
             "use_sim_time",

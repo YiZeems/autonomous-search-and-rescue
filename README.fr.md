@@ -344,7 +344,9 @@ Arguments du `bringup_tb4.launch.py` :
 ## Parcours de décision — comment `bl` en est arrivé là
 
 Le **journal pédagogique des décisions clés** de `bl`, en `Problème → Décision →
-Pourquoi`. C'est la colonne vertébrale « lessons learned » du rapport. Chaque
+Pourquoi`. C'est la colonne vertébrale « lessons learned » du rapport. La **version
+complète** (avec la saga de débogage L18 au format `Problème → Investigation →
+Décision → Pourquoi`) est dans [`docs/parcours.md`](docs/parcours.md) ; chaque
 piège technique est détaillé dans [`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AND_FIXES.md).
 
 ### L13–L14 — Fondations
@@ -376,8 +378,44 @@ piège technique est détaillé dans [`docs/ERRORS_AND_FIXES.md`](docs/ERRORS_AN
 - **SpinAndScan.** *Problème :* les goals frontière orientent la caméra dans le sens de marche, donc l'OAK-D fait rarement face aux tags muraux (explore mais ne trouve pas de victime). *Décision :* tourner sur place après chaque goal atteint pour balayer les murs.
 - **Raffinement du goal.** *Problème :* un centroïde brut est sur la frontière explored/unknown → Nav2 le rejette. *Décision :* snapper le goal sur la cellule **libre** la plus proche (`nearest_free_cell`) + ignorer les frontières à gain quasi-nul (`info_gain_min_gain`).
 
-### L18 — ce qui reste
-Enchaîner les 4 victimes en **un seul run autonome continu** + atteindre 90 % de façon fiable demande un **tuning Nav2 point-à-point** plus poussé (pré-check de joignabilité via `ComputePathToPose`, tuning costmap/controller). Chaque capacité est validée individuellement ; il reste le polish d'intégration.
+### L18 — run continu & stabilité hôte (la saga de débogage)
+> Détail complet (`Problème → Investigation → Décision → Pourquoi`) dans
+> [`docs/parcours.md`](docs/parcours.md). Condensé :
+
+**Reboots de l'hôte sous charge — mesurer, pas deviner.** Deux fausses pistes écartées par la
+mesure : **mémoire** (WSL 5/19 GiB, hôte 12 GB libres, VRAM 0,2/8 GB) et **Windows Update**
+(rien en attente, pause sans effet). Vraies causes (event log) : bugchecks sous charge —
+**`0x116` VIDEO_TDR_FAILURE**, **`0x10e` VIDEO_MEMORY_MANAGEMENT**, **`0x101` CLOCK_WATCHDOG ×2** —
++ redémarrages **1074** « non planifiés » qui surviennent seuls (OEM/MSI, non réglable en non-admin).
+*Décisions sous notre contrôle :* **knob RTF** (`IA712_GZ_RT_RATE`, défaut 0,7 — moins de cycles
+GPU/CPU par seconde réelle, **temps simulé inchangé**), **RTF à chaud** via `set_physics`,
+**`.wslconfig` allégé** (`processors 16→10`, `memory 20→14 GB`), benchmarks **resumables**.
+
+**4 victimes en un run continu — six bugs empilés, chaque fix révèle le suivant :**
+1. Patrouille seule → robot immobile (goals en zone **non cartographiée**) → **hybride** (explorer puis patrouiller).
+2. Waypoints `(0, ±3.2)` **sur le mur x=0** → les placer en **espace libre** validé.
+3. `Failed to make progress` → reflex Create3 → **`safety_override=full`**.
+4. Goals des coins **rejetés** (cellules encore inconnues à 93 %) → **goal-snapping** + waypoints **centraux**.
+5. Snap OK mais goals cross-room échouent (`bt_navigator: Goal failed`) → **routage doorways** fragile → **pivot**.
+6. **Pivot : SpinAndScan 360° pendant l'exploration** (`spin_scan_duration 7→12 s`) — l'explorateur visite déjà toutes les pièces pour mapper 93 %, donc un balayage complet à chaque goal capte chaque tag, bien plus robuste que la patrouille rigide.
+7. **Cause racine couverture :** même le spin 360° ne captait qu'1 victime et la couverture calait à 88 % — le robot **n'entre pas** dans les pièces. `inflation_radius 0.30` + `cost_scaling 3.0` rendent les abords des murs coûteux → NavFn longe les couloirs. **Baisser `inflation_radius 0.30→0.25` + `cost_scaling 3.0→2.0`** (robot_radius 0.22 garde un buffer) → le planner plonge *dans* les pièces → **couverture 90 %+** (v5 : 26 m parcourus vs 14 m).
+8. **Cause racine détection :** à 93 % de couverture, robot *dans* les pièces, mais **0 victime** — apriltag reçoit **0 image** (seul `camera_info`), alors que `ign topic` montre que Gazebo **rendait** (320×240). Le **RTF s'était effondré à 0.05** → ~1,5 image/s mur → la fenêtre de sync apriltag voyait 0 paire. À RTF bas la **caméra (rendu GPU) est affamée** tandis que `camera_info` (métadata, sans rendu) continue → le spin balayait un flux d'images vide. *Fix :* **remonter le RTF** (`IA712_GZ_RT_RATE 70→100` ; sûr maintenant que les crashes ont disparu). Deux causes racines distinctes sous les bugs 1-6 : coût Nav2 (couverture) et caméra affamée par le RTF (détection). *(Meilleur run mesuré : 93,5 % + 2 victimes, vrais IDs.)*
+9. **Cause racine OOM — la fuite Gazebo :** les runs > ~10 min font OOM car **`mem_profile.sh` prouve que Gazebo fuit ~35 MB/s** (boucle de rendu Ogre2/D3D12+WSL, par seconde *murale* ; irréductible — 8 Hz, RGB-seul sans depth+pointcloud, RTF plus haut tous testés, aucun effet). L'OOM **coupe la patrouille à 2/4 → 3 victimes seulement**. *Fixes :* **(a)** ne rendre la caméra que **pendant la patrouille** — l'exploration navigue au LIDAR, donc `always_on=0` + couper le bridge caméra en phase 1, le relancer en phase 2 → pas de fuite de rendu pendant la phase longue → pas d'OOM ; **(b)** **retry des waypoints échoués** (2ᵉ passe) pour capter les 4 (chaque waypoint manqué = une victime ratée) ; **(c)** sortie propre → carte sauvée. 3 victimes fiables (sur les runs, ids 0,1,2,3 tous détectables) ; ces fixes visent le 4ᵉ-en-un-run.
+
+**Algorithmes à comparer pour améliorer le *chemin réellement emprunté* (CM9/CM10)** — voir
+[`docs/parcours.md`](docs/parcours.md) §9. Le chemin réel = global planner + controller :
+- **Global planner (le chemin) :** Dijkstra/**NavFn** (conservé) vs **A\*/`SmacPlanner2D`** (CM9).
+  *Mesuré L18 :* SmacPlanner2D **refuse de planifier quand le robot est en zone inflatée** (« Starting
+  point in lethal space! ») → robot **figé à 60 %** dans cette arène cloisonnée ; **NavFn tolère → 88-96 %**,
+  donc NavFn est le choix robuste ici. Vrai résultat de comparaison (pas juste « A\* > Dijkstra » sur le papier). RRT = outlook.
+- **Controller (le suivi) :** **DWB** (actuel) → **Regulated Pure Pursuit** (plus lisse pour le diff-drive
+  TB4, moins de `Failed to make progress` aux doorways).
+- **Exploration :** greedy vs info_gain benchmarké (n=3) ; **RRT-exploration** en outlook.
+- *Expérience la plus rentable :* benchmarker **NavFn vs SmacPlanner2D** (longueur de chemin, `time_to_90`).
+
+**Bugs d'outillage :** un `pkill -f "ign gazebo|…"` inline matchait **sa propre ligne de commande**
+et s'auto-tuait (→ nettoyer via `kill_sim.sh`) ; `rsyncDown_*_run --delete` écrasait `experiments/`
+généré (→ `--exclude='experiments/'`, flux artefacts run→branche).
 
 ---
 

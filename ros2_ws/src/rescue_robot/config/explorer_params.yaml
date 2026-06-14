@@ -39,8 +39,10 @@ frontier_explorer_node:
     # After each reached goal, rotate in place to sweep the camera over the walls
     # so wall-mounted AprilTag victims are seen during normal exploration.
     spin_and_scan: true
-    spin_scan_speed: 0.6      # rad/s
-    spin_scan_duration: 7.0   # s (~ one full turn)
+    spin_scan_speed: 0.6       # rad/s
+    spin_scan_duration: 12.0   # s → 0.6×12 = 7.2 rad > 360° : tour COMPLET pour
+                               # balayer tous les murs et capter le tag quelle que
+                               # soit l'orientation du robot en arrivant sur le goal.
     # Snap the chosen goal to the nearest free cell within this radius (cells)
     # before sending to Nav2 (avoids goals stuck in unknown/occupied space).
     goal_snap_radius: 8

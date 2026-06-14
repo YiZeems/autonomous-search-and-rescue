@@ -17,6 +17,10 @@ echo "[kill-sim] load avant : $(uptime | grep -oE 'load average:.*')"
 # Patterns live in this array (never on a bare command line) so pkill cannot
 # match this script's own arguments.
 _PATTERNS=(
+  # Launchers FIRST — `ros2 launch`/`ros2 run` respawn their nodes, so killing a
+  # node without killing its launcher just makes it come back (the bug that let
+  # exporters/explorers accumulate across runs). Kill the parents, then the nodes.
+  "ros2 launch" "ros2 run" ".launch.py"
   run_demo_tb4 "ign gazebo" ign_gazebo_server ruby rviz2
   async_slam_toolbox slam_toolbox parameter_bridge ros_gz_bridge ros_ign_bridge
   controller_server planner_server bt_navigator behavior_server
@@ -29,10 +33,16 @@ _PATTERNS=(
   turtlebot4_spawn turtlebot4_ignition turtlebot4_node turtlebot4_viz
   irobot_create create3 wheel_status ui_mgr sensors_node pose_republisher
   kidnap_estimator joint_state_pub ir_intensity interface_button
-  hazards_vector motion_control spawner "rescue_robot/lib"
+  hazards_vector motion_control spawner "rescue_robot/lib" "ros2_ws/install"
 )
-for _p in "${_PATTERNS[@]}"; do
-  pkill -9 -f -- "${_p}" 2>/dev/null || true
+# Two passes: pass 1 kills launchers + nodes; a respawn that slipped through dies
+# in pass 2. (`pkill -f` is used so the python-entry-point nodes — comm=python3 —
+# are matched by their cmdline, not their generic process name.)
+for _pass in 1 2; do
+  for _p in "${_PATTERNS[@]}"; do
+    pkill -9 -f -- "${_p}" 2>/dev/null || true
+  done
+  sleep 1
 done
 
 # Clear stale Fast-DDS SHM (both the port locks and the segment/semaphore files).

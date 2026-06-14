@@ -3,14 +3,13 @@
 <sdf version='1.8'>
     <world name='rescue_arena'>
         <physics name='1ms' type='ignored'>
-            <!-- Coarser step (0.01 vs 0.001 default / 0.003 prev) = ~3x fewer
-                 physics iterations -> much less CPU under software GL on WSL.
-                 Safe for the slow diff-drive TB4; Nav2/SLAM don't need fine
-                 physics. real_time_factor=1 keeps realtime (no slowdown);
-                 if the host still can't keep up, RTF drops gracefully. -->
+            <!-- Coarser step (0.01 vs 0.001 default) = ~3x fewer physics iterations.
+                 Safe for the slow diff-drive TB4; Nav2/SLAM don't need fine physics.
+                 real_time_update_rate is the GPU/CPU-load knob (see rt_rate above):
+                 70 -> RTF 0.7, lighter sustained load; IA712_GZ_RT_RATE=100 for realtime. -->
             <max_step_size>0.01</max_step_size>
             <real_time_factor>1</real_time_factor>
-            <real_time_update_rate>100</real_time_update_rate>
+            <real_time_update_rate>70</real_time_update_rate>
         </physics>
         <plugin name='ignition::gazebo::systems::Physics' filename='ignition-gazebo-physics-system' />
         <plugin name='ignition::gazebo::systems::UserCommands' filename='ignition-gazebo-user-commands-system' />

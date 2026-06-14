@@ -104,18 +104,41 @@ class ResultExporterNode(Node):
 
     # -- summary ----------------------------------------------------------------
 
+    def _real_victims(self):
+        """Real AprilTag IDs + map positions, from victim_registry's victims.json
+        (the /victims_map PoseArray carries poses only, no IDs). Looked up in the
+        run's results dir first, then the repo default."""
+        for p in (self.results_dir / 'victims.json', Path('results/victims.json')):
+            try:
+                vics = json.loads(p.read_text()).get('victims', [])
+                if vics:
+                    return vics
+            except (OSError, json.JSONDecodeError):
+                continue
+        return []
+
     def export_summary(self):
         duration = (self._now() - self._t0) if self._t0 is not None else 0.0
+        real = self._real_victims()
+        ids = sorted({v['id'] for v in real if 'id' in v})
         summary = {
             'strategy': self.strategy,
             'final_coverage': round(self.coverage, 4),
-            'victims_detected': len(self.victims),
+            'victims_detected': max(len(self.victims), len(ids)),
             'success_coverage_90': self.coverage >= 0.90,
             'path_length_m': round(self.path_length, 3),
             'duration_s': round(duration, 1),
             'time_to_50_s': self._time_to[0.5],
             'time_to_75_s': self._time_to[0.75],
             'time_to_90_s': self._time_to[0.90],
+            # Real AprilTag victim IDs (so the report can say "ids 0,1,2,3"):
+            'victim_ids': ids,
+            'victim_positions': [
+                {'id': v.get('id'), 'x': round(v['x'], 3), 'y': round(v['y'], 3)}
+                for v in real if 'x' in v and 'y' in v
+            ],
+            'success_victims_3': len(ids) >= 3,
+            'success_victims_all': len(ids) >= 4,
         }
         with self.summary_path.open('w') as f:
             json.dump(summary, f, indent=2)
