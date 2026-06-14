@@ -111,3 +111,43 @@ Outputs land in `results/` (`run_summary.json`, `victims.json`,
 `ros-humble-rmw-cyclonedds-cpp` is **mandatory** on WSL (Fast-RTPS discovery is
 flaky here). Without it every node dies at startup. See `ERRORS_AND_FIXES.md` #32
 and the apt list in the [README](../README.md).
+
+## 5. Long benchmarks without rebooting the host
+
+A long **sequence** of heavy GPU runs (e.g. the L17 benchmark, 3 strategies × N
+runs, ~45 min total) can reboot the host even when a single run is fine. Two
+distinct things are at play and each has a fix:
+
+1. **Memory accumulation across runs** — WSL holds RAM it grabbed and doesn't hand
+   it back to Windows.
+   - **`.wslconfig` → `[experimental] autoMemoryReclaim=gradual`** (Microsoft WSL
+     feature): WSL returns unused RAM to Windows automatically. Add it +
+     `sparseVhd=true`, then `wsl --shutdown` to apply. Also cap `[wsl2] memory`.
+   - **`run_benchmark.sh` cleans + cools down between runs**: a thorough `pkill` +
+     `ros2 daemon stop` + stale-SHM purge, then an idle **cooldown**
+     (`IA712_BENCH_COOLDOWN`, default 30 s) so the reclaim happens before the next
+     run. Free-RAM is logged each run — watch it stay flat instead of creeping up.
+
+2. **A reboot can still hit mid-campaign** (sustained GPU/thermal load on a laptop
+   is hard to fully eliminate — even the course author runs Gazebo CPU-only on his
+   laptop, cf. `doc/orig/.../Projet_C_FR.txt`: *« je n'ai pas de GPU … je n'utilise
+   que le CPU pour faire tourner Gazebo »*). So the benchmark is made **resumable**
+   instead of relying on never rebooting:
+   - each run writes `run_summary.json` + `run_status.json` into its own
+     `experiments/<algo>_run<n>/`, and the runner **skips any run already valid**
+     (reached 90 % or ran ≥ `IA712_BENCH_VALID_MIN` s, default 200);
+   - it **never wipes `experiments/`** itself (use `IA712_BENCH_FRESH=1` for a clean
+     campaign). After a reboot just **relaunch the exact same command** — completed
+     runs are skipped, only the missing/interrupted ones run. The campaign reaches
+     mean ± σ + `time_to_90` across however many reboots it takes.
+
+Canonical (resumable) launch — relaunch verbatim after any reboot:
+
+```bash
+cd run/bl/autonomous-search-and-rescue
+env -i HOME="$HOME" PATH=/usr/bin:/bin TERM=xterm DISPLAY=:0 \
+  IA712_BENCH_RUNS=3 IA712_BENCH_DURATION=400 IA712_BENCH_COOLDOWN=45 \
+  IA712_BENCH_ALGOS="greedy info_gain" \
+  bash scripts/sh/run_benchmark.sh
+# → ">>> greedy run 1 … [SKIP: déjà valide]" for runs already done.
+```

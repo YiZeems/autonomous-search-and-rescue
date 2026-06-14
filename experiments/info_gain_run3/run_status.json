@@ -1,0 +1,11 @@
+{
+  "algo": "info_gain",
+  "run": 3,
+  "exit_code": 124,
+  "timed_out": true,
+  "summary_present": true,
+  "valid_run": true,
+  "reason_if_invalid": "",
+  "duration_budget_s": 400,
+  "free_mb_before": "17934"
+}

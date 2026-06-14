@@ -1,0 +1,11 @@
+{
+  "strategy": "info_gain",
+  "final_coverage": 0.8572,
+  "victims_detected": 1,
+  "success_coverage_90": false,
+  "path_length_m": 13.847,
+  "duration_s": 265.5,
+  "time_to_50_s": 25.0,
+  "time_to_75_s": 225.0,
+  "time_to_90_s": null
+}

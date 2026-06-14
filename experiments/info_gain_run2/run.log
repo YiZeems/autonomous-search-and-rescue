@@ -1,0 +1,65 @@
+[platform] detected 'win' -> win-wsl2-x86_64  (render-engine: ogre2)
+[OK] TurtleBot4 bringup package found: turtlebot4_ignition_bringup
+[demo-tb4] ══════════════════════════════════════════
+[demo-tb4] Modèle : standard  |  Monde : rescue_arena
+[demo-tb4] Waypoints : waypoints_tb4_rescue_arena.yaml
+[demo-tb4] Logs : /tmp/ia712_demo_ES4y
+[demo-tb4] ══════════════════════════════════════════
+
+[1/8] robot_state_publisher : fourni par turtlebot4_spawn (pas de doublon)
+[2/8] Ignition Gazebo server (-s, monde=rescue_arena, render=ogre2)...
+  PID=5681 — attente 12 s
+[3/8] Clock bridge + spawn via turtlebot4_spawn.launch.py...
+  spawn PID=5880 — attente 20 s (bridges + controllers)
+[4/8] Bridges capteurs (lidar → /scan_raw → throttle → /scan)...
+  lidar  Ignition: /world/rescue_arena/model/turtlebot4/turtlebot4/link/rplidar_link/sensor/rplidar/scan
+  camera Ignition: /world/rescue_arena/model/turtlebot4/turtlebot4/link/oakd_rgb_camera_frame/sensor/rgbd_camera/image
+  scan frame_id  : turtlebot4/turtlebot4/rplidar_link/rplidar
+  Topics: /clock(1) /scan(1) /camera/image_raw(1) /turtlebot4/odom(1) 
+[5/8] Static TF bridges + relays...
+  TF chain: [WARN] incomplète, SLAM attendra
+[6/8] SLAM Toolbox + Nav2 (params TB4, recovery=wait uniquement)...
+  PID=7359 — attente 50 s lifecycle
+  Nav2 ACTIF
+  Map SLAM: 238 cellules
+[7/8] RViz2 + nœuds résultats...
+  RViz désactivé (IA712_RVIZ=0) — run sans rendu
+  [WARN] RViz2 mort — voir /tmp/ia712_demo_ES4y/rviz2.log
+[7b/8] Perception + Behavior Tree (passifs)...
+  apriltag_node PID=7870 VIVANT (tag36h11 → /detections)
+  victim_registry PID=7904 VIVANT
+  bt_runner PID=7931 VIVANT (Groot Monitor: ZMQ localhost:1666)
+
+[demo-tb4] ╔══════════════════════════════════════════╗
+[demo-tb4] ║   Navigation en cours — suivre RViz2     ║
+[demo-tb4] ║   Ctrl+C pour arrêter proprement         ║
+[demo-tb4] ╚══════════════════════════════════════════╝
+
+[8/8] Exploration autonome (frontier_explorer_node)
+
+[demo-tb4] Arrêt en cours...
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  5681 Killed                  ign gazebo -s -r -v 2 --render-engine "${RENDER_ENGINE}" "${WORLD_SDF}" > "${LOGDIR}/ign.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  6942 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/scan_throttle_node.py" --ros-args -p use_sim_time:=true -p in_topic:=/scan_raw -p out_topic:=/scan -p rate_hz:=10.0 > "${LOGDIR}/scan_throttle.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7061 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/tf_relay_node.py" > "${LOGDIR}/tf_relay.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7062 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/tf_relay_node.py" --ros-args -p src_topic:=/turtlebot4/tf_static -p dst_topic:=/tf_static -p static:=true > "${LOGDIR}/tf_static_relay.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7063 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 "${WS_DIR}/src/rescue_robot/rescue_robot/utils/cmd_vel_relay_node.py" > "${LOGDIR}/cmd_relay.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7772 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 -c "from rescue_robot.results.coverage_evaluator_node import main; main()" > "${LOGDIR}/cov.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7773 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 -c "from rescue_robot.results.result_exporter_node import main; main()" > "${LOGDIR}/exp.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7774 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 -c "from rescue_robot.results.rviz_marker_node import main; main()" > "${LOGDIR}/mrk.log" 2>&1
+/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/scripts/sh/run_demo_tb4.sh: line 132:  7904 Killed                  PYTHONPATH="${WS_DIR}/build/rescue_robot:${PYTHONPATH:-}" python3 -c "from rescue_robot.detection.victim_registry_node import main; main()" > "${LOGDIR}/victim_registry.log" 2>&1
+[demo-tb4] Arrêt terminé. Logs: /tmp/ia712_demo_ES4y
+
+══════════════════════════════════════════
+         RÉSULTATS DE MISSION
+══════════════════════════════════════════
+Durée totale (depuis Nav2) : 5m24s
+
+Waypoints:
+  Atteints : 0
+  Échecs   : 0
+
+Fichiers résultats : /home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/results/
+Logs               : /tmp/ia712_demo_ES4y/
+══════════════════════════════════════════
+
+Ces données serviront à l'apprentissage du robot.

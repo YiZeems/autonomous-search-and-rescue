@@ -1,0 +1,11 @@
+{
+  "strategy": "greedy",
+  "final_coverage": 0.7499,
+  "victims_detected": 0,
+  "success_coverage_90": false,
+  "path_length_m": 5.946,
+  "duration_s": 269.0,
+  "time_to_50_s": 0.0,
+  "time_to_75_s": 265.0,
+  "time_to_90_s": null
+}
