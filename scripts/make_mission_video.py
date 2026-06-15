@@ -79,7 +79,7 @@ def main():
     fig, (axc, axm) = plt.subplots(1, 2, figsize=(12, 5.2))
     fig.suptitle("Mission autonome orchestrée par le Behavior Tree — replay", fontsize=13)
 
-    axm.imshow(img, cmap="gray", extent=extent, origin="lower", vmin=0, vmax=255)
+    axm.imshow(img, cmap="gray", extent=extent, origin="upper", vmin=0, vmax=255)
     # Draw the walls (opaque black) ABOVE the trajectory trail (high zorder). The trail is
     # logged 100 % on free cells, so masking it with the walls removes nothing — but it can
     # then never appear on a wall: the growing trail is only visible in free space, i.e. it
@@ -87,7 +87,7 @@ def main():
     _warr = np.asarray(img.convert("L"))
     _wrgba = np.zeros((*_warr.shape, 4), dtype=float)
     _wrgba[_warr <= 50] = (0.0, 0.0, 0.0, 1.0)
-    axm.imshow(_wrgba, extent=extent, origin="lower", zorder=5.0, interpolation="nearest")
+    axm.imshow(_wrgba, extent=extent, origin="upper", zorder=5.0, interpolation="nearest")
     axm.set_xlabel("x (m)"); axm.set_ylabel("y (m)")
     if goals:
         gx, gy = zip(*goals)

@@ -1,0 +1,268 @@
+% !TEX program = xelatex
+% IA712 - Project B: Autonomous Search and Rescue - 10-minute presentation (EN)
+\documentclass[aspectratio=169,11pt]{beamer}
+\usepackage{amsmath}
+\usepackage{fontspec}
+\usepackage{graphicx}
+\graphicspath{{img/}}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric,fit,calc}
+\usepackage{booktabs}
+
+\definecolor{nccblue}{HTML}{1F4E79}
+\definecolor{nccsky}{HTML}{1F6FEB}
+\definecolor{nccorange}{HTML}{FB8500}
+\definecolor{nccgreen}{HTML}{2DA44E}
+\definecolor{nccred}{HTML}{D1242F}
+\definecolor{nccdark}{HTML}{222831}
+
+\usetheme{default}
+\usecolortheme{default}
+\setbeamercolor{structure}{fg=nccblue}
+\setbeamercolor{frametitle}{fg=white,bg=nccblue}
+\setbeamertemplate{frametitle}{\vspace{2pt}\strut\insertframetitle\strut}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+\setbeamerfont{frametitle}{series=\bfseries}
+\setbeamertemplate{itemize items}[circle]
+\setbeamercolor{itemize item}{fg=nccorange}
+\setbeamercolor{itemize subitem}{fg=nccsky}
+
+\tikzset{
+  box/.style={rounded corners=2pt,draw=nccblue,fill=nccblue!6,align=center,inner sep=3pt,font=\scriptsize,minimum height=7mm,text width=20mm},
+  phase1/.style={box,fill=nccsky!15,draw=nccsky},
+  phase2/.style={box,fill=nccorange!15,draw=nccorange},
+  io/.style={box,fill=nccgreen!12,draw=nccgreen},
+  ar/.style={-{Latex[length=2mm]},draw=nccdark!70,semithick},
+}
+
+\title{\textbf{Autonomous Search and Rescue}}
+\subtitle{Project~B - IA712 Mobile Robotics, Final Project}
+\author{\textbf{Team RobotZ}\\[3pt]{\footnotesize Julien GIMENEZ \quad Hugo FANCHINI \quad Paul CINTRA \quad Yimou ZHANG}}
+\institute{\small \texttt{https://github.com/YiZeems/autonomous-search-and-rescue}}
+\date{IA712 - Session L18}
+
+\begin{document}
+
+% -- Title --
+\begin{frame}[plain]
+  \titlepage
+  \begin{center}\footnotesize
+  ROS\,2 Humble $\cdot$ Ignition Gazebo Fortress $\cdot$ TurtleBot~4 $\cdot$ Nav2 $\cdot$ slam\_toolbox $\cdot$ BehaviorTree.CPP
+  \end{center}
+\end{frame}
+
+% -- Problem --
+\begin{frame}{The mission: autonomous search \& rescue}
+  \begin{columns}[T]
+  \begin{column}{0.58\linewidth}
+  \textbf{Scenario~[1]:} a robot explores an unknown disaster zone, finds ``victims'' (AprilTags),
+  and reports their global coordinates - \emph{no human input}.
+  \medskip
+  \textbf{Requirements we satisfy:}
+  \begin{itemize}
+    \item Autonomous frontier exploration, map $>90\,\%$
+    \item Camera detection $\to$ \texttt{map} via \texttt{tf2}
+    \item Map quality / loop closure (SLAM)
+    \item \textbf{Decision = Behavior Tree, not FSM}
+    \item One-click launch
+    \item Bonus: greedy vs.\ information-gain
+  \end{itemize}
+  \end{column}
+  \begin{column}{0.40\linewidth}
+  \includegraphics[width=\linewidth]{rviz_live}\\
+  {\scriptsize Live RViz: map + 4 victims + algorithms.}
+  \end{column}
+  \end{columns}
+  \vfill
+  {\footnotesize\color{nccblue}\textbf{Result:} one continuous autonomous run - \textbf{97.17\,\% coverage, 4/4 victims}.}
+\end{frame}
+
+% -- Architecture --
+\begin{frame}{System architecture - four ROS\,2 packages}
+  \centering
+  \begin{tikzpicture}[node distance=5mm and 9mm,scale=0.9,transform shape]
+    \node[io] (robot) {TurtleBot~4};
+    \node[box,below=9mm of robot] (slam) {\textbf{slam\_toolbox}};
+    \node[box,right=of slam] (metric) {coverage};
+    \node[box,above=of metric] (april) {apriltag\_ros};
+    \node[box,fill=nccblue!14,right=12mm of metric,text width=28mm] (bt) {\textbf{rescue\_decision $\cdot$ BT}\\\scriptsize WaitForMap$\to$Explore$\to$Inspect};
+    \node[phase1,below=8mm of bt,xshift=-9mm] (explore) {frontier\_explorer\\\scriptsize Phase 1};
+    \node[phase2,right=of explore] (inspect) {inspection\_node\\\scriptsize Phase 2};
+    \node[box,below=8mm of explore,xshift=8mm] (nav) {Nav2};
+    \node[box,above=of bt] (reg) {victim\_registry\\\scriptsize TF2$\to$map};
+    \node[io,right=of bt] (rviz) {RViz / disk};
+    \draw[ar] (robot)--(slam); \draw[ar] (robot.east) to[bend left=12] (april.west);
+    \draw[ar] (slam)--(metric); \draw[ar] (april)--(reg);
+    \draw[ar] (metric)-- node[below,font=\tiny]{/coverage}(bt);
+    \draw[ar] (bt.south) to[out=-120,in=70] node[right,font=\tiny]{enable}(explore.north);
+    \draw[ar] (bt.south) to[out=-60,in=100] node[right,font=\tiny]{enable}(inspect.north);
+    \draw[ar] (inspect.north) to[out=120,in=-20] node[right,font=\tiny]{done}(bt.east);
+    \draw[ar] (explore)--(nav); \draw[ar] (inspect)--(nav);
+    \draw[ar] (nav.west) to[out=180,in=-90] node[left,font=\tiny]{/cmd\_vel}(slam.south);
+    \draw[ar] (reg)--(bt); \draw[ar] (bt)--(rviz);
+  \end{tikzpicture}
+  \par\medskip
+  {\footnotesize The \textbf{Behavior Tree orchestrates}: it gates the explorer and the inspector via
+  \texttt{/mission/*} topics; the Python nodes do the work.}
+\end{frame}
+
+% -- Two-phase BT --
+\begin{frame}{Two-phase mission orchestrated by the Behavior Tree}
+  \begin{columns}[T]
+  \begin{column}{0.36\linewidth}
+  \centering
+  \begin{tikzpicture}[node distance=2.4mm,scale=0.9,transform shape]
+    \node[box,fill=nccblue!16,text width=24mm] (root){\textbf{Sequence}};
+    \node[box,below=4mm of root,text width=22mm](n1){WaitForMap};
+    \node[phase1,below=of n1,text width=22mm](n2){ExplorePhase\\\scriptsize $\geq$90\,\%};
+    \node[phase2,below=of n2,text width=22mm](n3){InspectPhase\\\scriptsize per room};
+    \node[box,below=of n3,text width=22mm](n4){VictimsFound};
+    \node[io,below=of n4,text width=22mm](n5){mission\_done};
+    \draw[ar](root)--(n1);\draw[ar](n1)--(n2);\draw[ar](n2)--(n3);\draw[ar](n3)--(n4);\draw[ar](n4)--(n5);
+  \end{tikzpicture}
+  \end{column}
+  \begin{column}{0.62\linewidth}
+  \includegraphics[width=\linewidth]{algorithms_two_phase}\\
+  {\scriptsize \textbf{Phase 1} (blue) frontier exploration builds the map; \textbf{Phase 2} (orange)
+  inspects each room at \emph{map-derived} poses (no victim coordinates) to catch every wall tag.}
+  \end{column}
+  \end{columns}
+  \medskip
+  {\footnotesize\color{nccblue} Why two phases? Pure exploration maps rooms from doorways but the camera
+  never gets within 2\,m of the wall tags $\Rightarrow$ it caps at $\sim$2 victims.}
+\end{frame}
+
+% -- Concepts --
+\begin{frame}{Theoretical foundations (from the course)}
+  \begin{columns}[T]
+  \begin{column}{0.54\linewidth}
+  \begin{itemize}
+    \item \textbf{SLAM + loop closure} - consistent online map (CM6--7)~[4].
+    \item \textbf{Frontier exploration} - free/unknown boundary~[2]; \emph{information-gain}
+      $g(f)=\text{gain}-\lambda\,\text{cost}$~[3] (CM8). Blacklist for dead frontiers.
+    \item \textbf{Path planning} - Dijkstra/NavFn vs.\ A*; NavFn kept (tolerant in tight space) (CM9).
+    \item \textbf{TF2} - project camera detection $\to$ global \texttt{map} (CM, requirement~[8]).
+    \item \textbf{Behavior Tree} - reactive, composable; memory \texttt{Sequence}, not an FSM~[6].
+  \end{itemize}
+  \end{column}
+  \begin{column}{0.44\linewidth}
+  \centering
+  \begin{tikzpicture}[font=\scriptsize,scale=0.9,transform shape]
+    \fill[nccblue!6] (0,0) rectangle (4.2,2.5); \draw[very thick,nccdark] (0,0) rectangle (4.2,2.5);
+    \draw[very thick,nccdark] (1.8,2.5)--(1.8,1.7);\draw[very thick,nccdark] (1.8,0)--(1.8,1.0);
+    \node[star,star points=5,fill=nccred,draw=black,inner sep=1.3pt] at (3.9,1.25){};
+    \node[nccred,right] at (2.5,2.28){\tiny AprilTag (wall)};
+    \fill[nccsky] (0.7,0.7) circle (2pt);
+    \draw[dashed,nccsky] (0.7,0.7) circle (1.0cm);\node[nccsky] at (0.7,1.85){\tiny LIDAR 12\,m};
+    \draw[dashed,nccorange](0.7,0.7) circle (0.5cm);\node[nccorange] at (1.4,0.35){\tiny cam 2\,m};
+    \draw[{Latex}-{Latex},nccred](1.55,1.25)--(3.7,1.25)node[midway,above]{\tiny out of range};
+  \end{tikzpicture}\\
+  {\scriptsize The camera-vs-LIDAR gap that the inspection phase closes.}
+  \end{column}
+  \end{columns}
+\end{frame}
+
+% -- Journey --
+\begin{frame}{The decision journey - three runs}
+  \centering
+  \begin{tikzpicture}[font=\scriptsize,scale=0.82,transform shape]
+  \foreach \i/\x/\c/\t/\v in {1/0/nccsky/{Run 1 - pure exploration}/{v20–v22},2/5.6/nccorange/{Run 2 - two-phase + BT}/{v32},3/11.2/nccgreen/{Run 3 - final}/{v37}}{
+    \node[draw=\c,fill=\c!14,rounded corners,text width=4.9cm,align=center,font=\bfseries,minimum height=7mm](h\i) at (\x+2.45,4.4){\t\\\normalfont\scriptsize \v};}
+  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b1) at (2.45,2.9){\textbf{\color{nccred}Blocked:} $\sim$2 victims (camera $>$2\,m from tags); loops on dead frontiers.};
+  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b1](i1){\textbf{\color{nccgreen}Improved:} frontier blacklist; RTF knob; $\sim$90\,\% map.};
+  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b2) at (8.05,2.9){\textbf{\color{nccred}Blocked:} completeness $\neq$ camera coverage; rigid patrol fragile.};
+  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b2](i2){\textbf{\color{nccgreen}Improved:} map-derived inspection; \textbf{BT orchestrates} $\Rightarrow$ \textbf{4/4 + 97\,\%}.};
+  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b3) at (13.65,2.9){\textbf{\color{nccred}Blocked:} RTF~1.5 $\to$ 3/4 + GPU stress; figures looked wall-crossing.};
+  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b3](i3){\textbf{\color{nccgreen}Improved:} keep RTF~0.7; walls over path; HD capture.};
+  \draw[-{Latex},very thick,nccdark!55] (5.0,3.7)--(5.5,3.7);
+  \draw[-{Latex},very thick,nccdark!55] (10.6,3.7)--(11.1,3.7);
+  \end{tikzpicture}
+  \par\smallskip
+  {\footnotesize Two hidden root causes: Nav2 cost discouraged \emph{entering} rooms (coverage); a
+  collapsed RTF \emph{starved the camera} (detection). The 2-phase BT then made 4/4 reliable.}
+\end{frame}
+
+% -- Results 1 --
+\begin{frame}{Results - live algorithms in RViz}
+  \centering
+  \includegraphics[width=0.32\linewidth]{rviz_seq_1}\hfill
+  \includegraphics[width=0.32\linewidth]{rviz_seq_3}\hfill
+  \includegraphics[width=0.32\linewidth]{rviz_seq_4}\\[3pt]
+  \includegraphics[width=0.32\linewidth]{rviz_seq_5}\hfill
+  \includegraphics[width=0.32\linewidth]{rviz_seq_6}\hfill
+  \includegraphics[width=0.32\linewidth]{trajectory_map}
+  \par\smallskip
+  {\footnotesize Exploration $\to$ inspection $\to$ four victims; bottom-right: the real map-frame path
+  (walls drawn over it, so it visibly threads doorways - no segment crosses a wall).}
+\end{frame}
+
+% -- Results 2 --
+\begin{frame}{Results - coverage, map and conformity}
+  \begin{columns}[c]
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=\linewidth]{coverage_curve}\\{\scriptsize Coverage \& path vs.\ time, 90\,\% target.}
+  \end{column}
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=0.86\linewidth]{mission_map}\\{\scriptsize Final map: 4 victims + autonomous inspection tour.}
+  \end{column}
+  \end{columns}
+  \medskip
+  {\footnotesize\color{nccblue}\centering \textbf{97.17\,\% coverage $\cdot$ 4/4 victims $\cdot$ annotated map $\cdot$ logged trajectory} - one click, fully autonomous.}
+\end{frame}
+
+% -- Team / git --
+\begin{frame}{Team and collaboration}
+  \begin{columns}[T]
+  \begin{column}{0.52\linewidth}
+  \footnotesize
+  Per-member \texttt{dev/*} branches merged into \texttt{dev/bl} (integration):
+  \begin{itemize}
+    \item \textbf{Yimou} - exploration, SLAM/Nav2, perception core
+    \item \textbf{Julien} - BT decision, infra (WSL/GPU/RTF), results, integration
+    \item \textbf{Hugo} - world / arena / AprilTag targets
+    \item \textbf{Paul} - perception/detection support, testing
+  \end{itemize}
+  \end{column}
+  \begin{column}{0.46\linewidth}\centering
+  \begin{tikzpicture}[font=\scriptsize,xscale=0.8,yscale=0.7,transform shape]
+    \draw[gray!50,line width=3pt] (0,0)--(7,0);\node[left] at (0,0){\texttt{main}};
+    \foreach \y/\n/\c in {2.4/{dev/yimou}/nccsky,1.4/{dev/julien}/nccgreen,0.5/{dev/hugo}/nccorange}{
+      \draw[\c,line width=2pt] (1,0) .. controls (1.6,\y) .. (2.4,\y) -- (5,\y);
+      \node[\c,left,font=\tiny\bfseries] at (0.9,\y){\n};
+      \fill[\c] (3.5,\y) circle (1.6pt);}
+    \draw[nccblue,line width=3pt] (2.4,-1.0)--(6.6,-1.0);\node[nccblue,left,font=\tiny\bfseries] at (0.9,-1.0){\texttt{dev/bl}};
+    \draw[-{Latex},nccsky,thick] (5,2.4) .. controls (5.8,1) .. (6.4,-0.95);
+    \draw[-{Latex},nccgreen,thick] (5,1.4) .. controls (5.6,0.2) .. (6.2,-0.95);
+    \draw[-{Latex},nccorange,thick] (5,0.5) .. controls (5.4,-0.3) .. (6.0,-0.95);
+    \fill[nccblue] (6.6,-1.0) circle (2pt);
+  \end{tikzpicture}\\
+  {\scriptsize Three workstreams $\to$ \texttt{bl} integration.}
+  \end{column}
+  \end{columns}
+\end{frame}
+
+% -- Lessons --
+\begin{frame}{Lessons learned}
+  \begin{itemize}
+    \item \textbf{Measure before prescribing} - ``obvious'' causes (memory, Windows Update) were wrong twice; event logs found the real ones (GPU TDR, a starved camera).
+    \item \textbf{One fix reveals the next} - victim detection crossed six stacked causes.
+    \item \textbf{Robust beats rigid} - adaptive exploration + 360$^\circ$ sweep beat a fixed patrol; the inspector also recovers a pose another machine cannot reach (wait for the costmap, fall back into the room) - \emph{cross-machine robustness}.
+    \item \textbf{Conformity by design} - a BT that \emph{orchestrates} (not just supervises) meets the assignment in spirit, not only in letter.
+  \end{itemize}
+  \vfill
+  {\footnotesize\color{nccblue}Timeline: L13 kick-off $\cdot$ L14 architecture $\cdot$ L15 nodes/SLAM $\cdot$ L16 BT+perception $\cdot$ L17 integration/benchmark $\cdot$ L18 two-phase, final run, report.}
+\end{frame}
+
+% -- Thanks --
+\begin{frame}[plain]
+  \centering
+  \vfill
+  {\Large\color{nccblue}\textbf{Thank you - Questions?}}\\[10pt]
+  {\small We warmly thank \textbf{Zhi Yan}, Teacher-Researcher at ENSTA,\\ for the IA712 course and guidance.}\\[14pt]
+  {\footnotesize \texttt{https://github.com/YiZeems/autonomous-search-and-rescue}}\\[4pt]
+  {\scriptsize Julien GIMENEZ $\cdot$ Hugo FANCHINI $\cdot$ Paul CINTRA $\cdot$ Yimou ZHANG}
+  \vfill
+\end{frame}
+
+\end{document}

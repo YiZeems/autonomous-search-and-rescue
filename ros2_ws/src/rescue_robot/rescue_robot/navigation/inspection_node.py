@@ -35,10 +35,16 @@ class InspectionNode(Node):
         self.declare_parameter("goal_timeout_sec", 150.0)
         self.declare_parameter("goal_snap_radius", 16)
         self.declare_parameter("dwell_sec", 8.0)
-        self.declare_parameter("dwell_spin_speed", 0.4)   # rad/s, short wall sweep
+        self.declare_parameter("dwell_spin_speed", 0.4)   # rad/s, wall sweep
         self.declare_parameter("inspect_grid", 2)
         self.declare_parameter("inspect_offset", 1.3)
         self.declare_parameter("inspect_min_cells", 80)
+        # Robustness (cross-machine): when Nav2 rejects/aborts a pose (it fell in the
+        # inflation layer or near unknown space on a slightly different map), DON'T just
+        # re-submit immediately — wait for the costmap to settle, then try fallback poses
+        # pulled toward the room interior (out of the wall inflation). See _goto.
+        self.declare_parameter("retry_wait_sec", 4.0)
+        self.declare_parameter("interior_pulls", [0.5, 0.9, 1.3])  # m, pull toward room centre
 
         self._timeout = float(self.get_parameter("goal_timeout_sec").value)
         self._snap_radius = int(self.get_parameter("goal_snap_radius").value)
@@ -47,6 +53,8 @@ class InspectionNode(Node):
         self._grid = int(self.get_parameter("inspect_grid").value)
         self._offset = float(self.get_parameter("inspect_offset").value)
         self._min_cells = int(self.get_parameter("inspect_min_cells").value)
+        self._retry_wait = float(self.get_parameter("retry_wait_sec").value)
+        self._pulls = [float(p) for p in self.get_parameter("interior_pulls").value]
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
@@ -102,7 +110,11 @@ class InspectionNode(Node):
             self._publish_markers(poses, i)
             if not self._goto(wp):
                 failed.append((i, wp))
-        for i, wp in failed:  # second pass — robot is elsewhere now, often succeeds
+        if failed:
+            self.get_logger().info(
+                f"{len(failed)} room(s) unreached — settling the costmap before a 2nd pass.")
+            self._wait_settle(self._retry_wait)
+        for i, wp in failed:  # second pass — robot is elsewhere now, costmap settled
             self.get_logger().info(f"Retry inspect pose {i+1} (2nd pass)...")
             self._publish_markers(poses, i)
             self._goto(wp)
@@ -138,13 +150,53 @@ class InspectionNode(Node):
         self._done_pub.publish(msg)
 
     def _goto(self, wp: dict) -> bool:
-        if not self._send_goal(wp):
-            return False
-        if self._dwell > 0.0:
-            self.get_logger().info(
-                f"  sweep {self._dwell:.0f}s @ {self._spin:.1f} rad/s (face the wall, catch the tag)")
-            self._spin_in_place(self._dwell, self._spin)
-        return True
+        """Reach the room and sweep the camera. Tries the snapped pose, then fallback poses
+        pulled toward the room interior (out of the wall inflation layer) — with a costmap-settle
+        WAIT before each retry, not an immediate re-submission. A reached pose then triggers a
+        guaranteed FULL-turn sweep so the tag is caught whatever the arrival orientation."""
+        yaw = float(wp.get("yaw", 0.0))
+        candidates = list(self._candidate_poses(wp))
+        for k, (cx, cy) in enumerate(candidates):
+            if k > 0:
+                self.get_logger().info(
+                    f"  goal failed — waiting {self._retry_wait:.0f}s for the costmap to settle, "
+                    f"then fallback {k}/{len(candidates)-1} (pose pulled toward the room interior)")
+                self._wait_settle(self._retry_wait)
+            if self._send_goal_xy(cx, cy, yaw):
+                self._sweep()
+                return True
+        self.get_logger().warn("  pose unreachable after all fallbacks — skipping this room.")
+        return False
+
+    def _candidate_poses(self, wp: dict):
+        """Yield (x, y) candidates: the snapped original pose first, then the same pose pulled
+        progressively toward the room interior (opposite the wall-facing yaw) so it leaves the
+        wall inflation layer where Nav2 refuses to plan. Each candidate is snapped to a free cell."""
+        yaw = float(wp.get("yaw", 0.0))
+        yield self._snap(float(wp["x"]), float(wp["y"]))
+        for pull in self._pulls:
+            px = float(wp["x"]) - pull * math.cos(yaw)
+            py = float(wp["y"]) - pull * math.sin(yaw)
+            yield self._snap(px, py)
+
+    def _sweep(self):
+        """Spin in place for at least a FULL turn (+15 %) so every wall is swept regardless of
+        the arrival orientation — this is what catches a tag the robot would otherwise face away
+        from (the cause of a victim missed at a reached pose)."""
+        if self._spin <= 0.0 or (self._dwell <= 0.0):
+            return
+        full_turn = 2.0 * math.pi * 1.15 / max(self._spin, 0.1)
+        dur = max(self._dwell, full_turn)
+        self.get_logger().info(
+            f"  sweep {dur:.0f}s @ {self._spin:.1f} rad/s (full turn, catch the tag)")
+        self._spin_in_place(dur, self._spin)
+
+    def _wait_settle(self, secs):
+        """Hold still while the Nav2 costmap updates/clears before a retry."""
+        end = time.time() + secs
+        while time.time() < end:
+            self._cmd_pub.publish(Twist())
+            time.sleep(0.2)
 
     def _spin_in_place(self, duration, speed):
         twist = Twist()
@@ -168,10 +220,9 @@ class InspectionNode(Node):
         fx, fy = free
         return ox + (fx + 0.5) * res, oy + (fy + 0.5) * res
 
-    def _send_goal(self, wp: dict) -> bool:
-        sx, sy = self._snap(float(wp["x"]), float(wp["y"]))
+    def _send_goal_xy(self, x: float, y: float, yaw: float) -> bool:
         goal = NavigateToPose.Goal()
-        goal.pose = self._make_pose(sx, sy, wp.get("yaw", 0.0))
+        goal.pose = self._make_pose(x, y, yaw)
         future = self._client.send_goal_async(goal)
         deadline = time.time() + 30.0
         while not future.done() and time.time() < deadline:

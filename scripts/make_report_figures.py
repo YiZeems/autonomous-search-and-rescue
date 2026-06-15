@@ -49,7 +49,7 @@ def _draw_walls(ax, img, extent, zorder=5.0):
     occ = arr <= 50  # occupied (walls) in the PGM convention (0 = occupied, 254 = free)
     rgba = np.zeros((*arr.shape, 4), dtype=float)
     rgba[occ] = (0.0, 0.0, 0.0, 1.0)  # opaque black walls, everything else transparent
-    ax.imshow(rgba, extent=extent, origin="lower", zorder=zorder, interpolation="nearest")
+    ax.imshow(rgba, extent=extent, origin="upper", zorder=zorder, interpolation="nearest")
 
 
 def _plot_path(ax, xs, ys, color, lw=1.6, zorder=3.5, label=None):
@@ -98,7 +98,7 @@ def mission_map(results_dir, out):
                 poses.append(tuple(float(v) for v in m.groups()))
 
     fig, ax = plt.subplots(figsize=(6.4, 6.4))
-    ax.imshow(img, cmap="gray", extent=extent, origin="lower", vmin=0, vmax=255)
+    ax.imshow(img, cmap="gray", extent=extent, origin="upper", vmin=0, vmax=255)
     _draw_walls(ax, img, extent)
     # map-derived inspection poses (autonomous) — blue arrows facing the wall
     for i, (x, y, yaw) in enumerate(poses):
@@ -186,7 +186,7 @@ def trajectory_map(results_dir, out, explog=None):
                 poses.append((float(m.group(1)), float(m.group(2))))
 
     fig, ax = plt.subplots(figsize=(7.0, 7.0))
-    ax.imshow(img, cmap="gray", extent=extent, origin="lower", vmin=0, vmax=255)
+    ax.imshow(img, cmap="gray", extent=extent, origin="upper", vmin=0, vmax=255)
     _draw_walls(ax, img, extent)
     if goals:
         gx, gy = zip(*goals)
@@ -313,7 +313,7 @@ def algorithms_two_phase(results_dir, out, explog=None):
 
     fig, (a1, a2) = plt.subplots(1, 2, figsize=(13, 6.8))
     for ax in (a1, a2):
-        ax.imshow(img, cmap="gray", extent=extent, origin="lower", vmin=0, vmax=255)
+        ax.imshow(img, cmap="gray", extent=extent, origin="upper", vmin=0, vmax=255)
         _draw_walls(ax, img, extent)
         ax.set_xlabel("x (m)"); ax.set_ylabel("y (m)")
     if expl:

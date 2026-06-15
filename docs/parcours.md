@@ -341,7 +341,45 @@ vidéo RViz HD (1600×1000, 442 s) + screenshot HD**, tous cohérents (même run
 
 ---
 
+## 7septies. L18 — Robustesse **inter-machines** de l'inspection (signalé par un coéquipier)
+
+> Un coéquipier relance `bl` sur **sa** machine et obtient **pire** : 93,8 % et **2 victimes**. Le
+> livrable « marche chez moi » n'est pas un système « qui marche ».
+
+**Investigation (sur son log).** Deux poses d'inspection (salles NE et NW) sont **rejetées par Nav2
+quasi-instantanément** (0,3–12 s) ; les « retry » de l'`inspection_node` sont des **re-soumissions
+immédiates**, pas une attente ; et une victime est **ratée à une pose pourtant atteinte**.
+
+**Deux causes racines.** *(a) Navigabilité* : sur une carte légèrement différente, les poses dérivées
+tombent dans la **couche d'inflation** du costmap (libres dans la grille brute, mais « lethal » pour le
+planner) → Nav2 refuse de planifier ; re-soumettre tout de suite ne change rien. *(b) Balayage trop
+court* : `dwell 8 s × spin 0,4 = 3,2 rad ≈ **183°**`, pas un tour complet → si le robot arrive dos au
+tag, il ne le voit jamais.
+
+**Décisions (fix, `inspection_node`).**
+- **Retry avec attente que le costmap se stabilise** (`_wait_settle`) au lieu de re-soumettre.
+- **Poses de repli tirées vers l'intérieur de la pièce** (0,5 / 0,9 / 1,3 m, à l'opposé du mur visé),
+  chacune snappée sur cellule libre → sort de l'inflation ; la **plus proche atteignable** l'emporte.
+- **Balayage 360° garanti** : `max(dwell, tour complet ×1,15)` ≈ **18 s** → capte le tag quelle que
+  soit l'orientation d'arrivée. *Pourquoi :* la détection ne doit pas dépendre de l'angle d'arrivée.
+
+**Validation (re-run).** **4/4 victimes, 97,17 %** ; la log montre la pose NE (celle qui échouait chez
+le coéquipier) **récupérée par le 2ᵉ repli après attente**. *Leçon : un système doit être **tolérant**
+(attendre, se rabattre) plutôt que **rigide** ; et un résultat n'est validé que **reproductible sur une
+autre machine**.* Toute la chaîne a été régénérée à partir de ce run (figures, archive, soutenance).
+
+---
+
 ## 8. Bugs d'outillage (transverses, instructifs)
+
+- **Carte rendue à l'envers (haut-bas) dans les figures matplotlib.** *Problème :* `imshow(...,
+  origin="lower")` sur un PGM ROS (dont la **ligne 0 = haut = y max**) retourne la carte verticalement ;
+  la trajectoire (correcte) posée dessus *semblait* **traverser les murs** — l'origine réelle du « ça
+  traverse les murs » qu'on a chassé longtemps. *Investigation :* la vérif `occ()` (convention monde) +
+  la carte annotée native (`annotate_map.py`, ligne 0 = haut) donnaient l'orientation **inverse** de
+  l'affichage. *Décision :* `origin="lower"` → **`origin="upper"`** dans `make_report_figures.py` et
+  `make_mission_video.py`. *Leçon : une donnée correcte mais **mal orientée** est un bug ; vérifier le
+  rendu contre une référence native, pas seulement la donnée.*
 
 - **`pkill -f` qui s'auto-tue.** *Problème :* un nettoyage inline `pkill -9 -f "ign gazebo|…"` matchait
   la **ligne de commande du shell wrapper** (qui contient ce motif en texte) → il se tuait lui-même

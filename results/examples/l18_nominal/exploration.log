@@ -1,12 +1,12 @@
-[INFO] [launch]: All log files can be found below /home/julien/.ros/log/2026-06-15-16-41-04-946629-MSI-win-90583
+[INFO] [launch]: All log files can be found below /home/julien/.ros/log/2026-06-15-18-58-17-907419-MSI-win-124564
 [INFO] [launch]: Default logging verbosity is set to INFO
-[INFO] [frontier_explorer_node-1]: process started with pid [90601]
-[frontier_explorer_node-1] [INFO] [1781534465.667717258] [frontier_explorer_node]: Frontier explorer started — strategy=info_gain (λ=1.0, r=1.5 m), spin_scan=True, stop at 92% coverage, min frontier size 3.
-[frontier_explorer_node-1] [INFO] [1781534470.848521655] [frontier_explorer_node]: Frontier goal [info_gain] -> (4.69, 3.39)  [cluster 910 cells, gain=1681 cost=115.1 score=1565.9, coverage 47.9%]
-[frontier_explorer_node-1] [WARN] [1781534481.165698489] [frontier_explorer_node]: Frontier (4.69, 3.39) unreachable (status=6) -> blacklisted. 1 frontier(s) blacklisted.
-[frontier_explorer_node-1] [INFO] [1781534483.019534701] [frontier_explorer_node]: Frontier goal [info_gain] -> (4.06, 3.53)  [cluster 75 cells, gain=1530 cost=107.3 score=1422.7, coverage 51.5%]
-[frontier_explorer_node-1] [INFO] [1781534512.625914445] [frontier_explorer_node]: SpinAndScan: rotating ~12s to sweep the camera.
-[frontier_explorer_node-1] [INFO] [1781534528.237581711] [frontier_explorer_node]: Frontier goal [info_gain] -> (1.91, -4.00)  [cluster 76 cells, gain=1421 cost=150.7 score=1270.3, coverage 73.2%]
-[frontier_explorer_node-1] [INFO] [1781534567.997510295] [frontier_explorer_node]: SpinAndScan: rotating ~12s to sweep the camera.
-[frontier_explorer_node-1] [INFO] [1781534569.134830471] [frontier_explorer_node]: Exploration disabled by BT — stopping (inspection phase next).
-[ERROR] [frontier_explorer_node-1]: process has died [pid 90601, exit code -9, cmd '/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/ros2_ws/install/rescue_robot/lib/rescue_robot/frontier_explorer_node --ros-args -r __node:=frontier_explorer_node --params-file /home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/ros2_ws/install/rescue_robot/share/rescue_robot/config/explorer_params.yaml --params-file /tmp/launch_params_kpmqkrh4'].
+[INFO] [frontier_explorer_node-1]: process started with pid [124584]
+[frontier_explorer_node-1] [INFO] [1781542698.713593444] [frontier_explorer_node]: Frontier explorer started — strategy=info_gain (λ=1.0, r=1.5 m), spin_scan=True, stop at 92% coverage, min frontier size 3.
+[frontier_explorer_node-1] [INFO] [1781542704.629375450] [frontier_explorer_node]: Frontier goal [info_gain] -> (4.69, 3.39)  [cluster 910 cells, gain=1681 cost=115.2 score=1565.8, coverage 47.9%]
+[frontier_explorer_node-1] [WARN] [1781542717.943345520] [frontier_explorer_node]: Frontier (4.69, 3.39) unreachable (status=6) -> blacklisted. 1 frontier(s) blacklisted.
+[frontier_explorer_node-1] [INFO] [1781542719.803458121] [frontier_explorer_node]: Frontier goal [info_gain] -> (4.07, 3.53)  [cluster 75 cells, gain=1530 cost=107.5 score=1422.5, coverage 51.6%]
+[frontier_explorer_node-1] [INFO] [1781542746.726601382] [frontier_explorer_node]: SpinAndScan: rotating ~12s to sweep the camera.
+[frontier_explorer_node-1] [INFO] [1781542762.306135164] [frontier_explorer_node]: Frontier goal [info_gain] -> (1.92, -3.95)  [cluster 76 cells, gain=1394 cost=150.6 score=1243.4, coverage 73.4%]
+[frontier_explorer_node-1] [INFO] [1781542802.028997354] [frontier_explorer_node]: SpinAndScan: rotating ~12s to sweep the camera.
+[frontier_explorer_node-1] [INFO] [1781542802.421851491] [frontier_explorer_node]: Exploration disabled by BT — stopping (inspection phase next).
+[ERROR] [frontier_explorer_node-1]: process has died [pid 124584, exit code -9, cmd '/home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/ros2_ws/install/rescue_robot/lib/rescue_robot/frontier_explorer_node --ros-args -r __node:=frontier_explorer_node --params-file /home/julien/projet_robotique_mobile/run/bl/autonomous-search-and-rescue/ros2_ws/install/rescue_robot/share/rescue_robot/config/explorer_params.yaml --params-file /tmp/launch_params_ozxb9zsc'].
