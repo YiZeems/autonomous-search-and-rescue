@@ -18,7 +18,7 @@ import time
 import rclpy
 import yaml
 from action_msgs.msg import GoalStatus
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
 from nav2_msgs.action import NavigateToPose
 from nav_msgs.msg import OccupancyGrid
 from rclpy.action import ActionClient
@@ -46,12 +46,18 @@ class WaypointFollowerNode(Node):
         # Pause facing the wall at each reached waypoint so apriltag_ros has time to
         # lock the tag (the waypoint already faces the wall). 0 disables.
         self.declare_parameter("dwell_sec", 4.0)
+        # During the dwell, ROTATE IN PLACE at this rate (rad/s) so the camera sweeps
+        # the whole room — the inspection pose only approximates the wall direction, so a
+        # full turn guarantees the wall AprilTag enters the frame. 0 = dwell without spin.
+        self.declare_parameter("dwell_spin_speed", 0.6)
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._loop = self.get_parameter("loop").value
         self._timeout = self.get_parameter("goal_timeout_sec").value
         self._snap_radius = int(self.get_parameter("goal_snap_radius").value)
         self._dwell = float(self.get_parameter("dwell_sec").value)
+        self._dwell_spin = float(self.get_parameter("dwell_spin_speed").value)
+        self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
 
         # Latest map for goal snapping (SLAM publishes /map latched: transient-local).
         self._map = None
@@ -148,13 +154,33 @@ class WaypointFollowerNode(Node):
             pass
 
     def _goto(self, wp: dict) -> bool:
-        """Navigate to wp; on success, dwell so apriltag can lock the wall tag."""
+        """Navigate to wp; on success, dwell (so apriltag can lock the wall tag) only
+        if the waypoint asks for it. Staging waypoints set `dwell: false` — they only
+        guide the robot doorway-by-doorway and must not waste time facing a wall."""
         if not self._send_goal(wp):
             return False
-        if self._dwell > 0.0:
-            self.get_logger().info(f"  dwell {self._dwell:.0f}s (let apriltag lock the tag)")
-            time.sleep(self._dwell)
+        if self._dwell > 0.0 and wp.get("dwell", True):
+            if self._dwell_spin > 0.0:
+                self.get_logger().info(
+                    f"  inspect: spin {self._dwell:.0f}s @ {self._dwell_spin:.1f} rad/s "
+                    f"(sweep the room walls for AprilTags)"
+                )
+                self._spin_in_place(self._dwell, self._dwell_spin)
+            else:
+                self.get_logger().info(f"  dwell {self._dwell:.0f}s (let apriltag lock the tag)")
+                time.sleep(self._dwell)
         return True
+
+    def _spin_in_place(self, duration: float, speed: float) -> None:
+        """Rotate in place for `duration` s, then stop — sweeps the camera over the
+        whole room so a wall AprilTag is seen whatever the approach heading was."""
+        twist = Twist()
+        twist.angular.z = speed
+        end = time.time() + duration
+        while time.time() < end:
+            self._cmd_pub.publish(twist)
+            time.sleep(0.1)
+        self._cmd_pub.publish(Twist())  # stop
 
     def _send_goal(self, wp: dict) -> bool:
         sx, sy = self._snap(float(wp["x"]), float(wp["y"]))

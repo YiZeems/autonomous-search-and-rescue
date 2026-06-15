@@ -148,10 +148,7 @@ class FrontierExplorerNode(Node):
 
         coverage = self._coverage(msg.data)
         if coverage >= self._cov_stop:
-            self.get_logger().info(
-                f"Exploration complete: coverage {coverage:.1%} >= {self._cov_stop:.0%}."
-            )
-            self._done = True
+            self._finish(f"Exploration complete: coverage {coverage:.1%} >= {self._cov_stop:.0%}.")
             return
 
         cells = fs.find_frontier_cells(msg.data, info.width, info.height)
@@ -182,10 +179,9 @@ class FrontierExplorerNode(Node):
                 )
                 self._blacklist.clear()
                 return
-            self.get_logger().info(
+            self._finish(
                 f"No reachable frontiers left (coverage {coverage:.1%}). Exploration finished."
             )
-            self._done = True
             return
 
         if not self._client.server_is_ready():
@@ -344,6 +340,24 @@ class FrontierExplorerNode(Node):
                 f"{len(self._blacklist)} frontier(s) blacklisted."
             )
         self._current_goal_world = None
+
+    def _finish(self, reason: str) -> None:
+        """Exploration is over (coverage target reached or no frontiers left).
+
+        Stop the robot, mark done and emit a clear log line. We deliberately do
+        NOT call rclpy.shutdown() here: invoked from inside a timer callback it
+        does not unblock rclpy.spin() (the process hangs). Instead the launcher
+        (run_demo_tb4.sh, EXPLORE branch) watches for this 'EXPLORATION_DONE'
+        marker, then stops the explorer and proceeds to the L18 finalization
+        (map save + victim annotation)."""
+        if self._done:
+            return
+        self._done = True
+        try:
+            self._cmd_pub.publish(Twist())  # stop any residual motion
+        except Exception:
+            pass
+        self.get_logger().info(f"EXPLORATION_DONE — {reason}")
 
 
 def main(args=None):

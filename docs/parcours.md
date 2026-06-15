@@ -120,11 +120,142 @@ décourageait le robot d'entrer dans les pièces cloisonnées (corrige la **couv
 effondré affamait le rendu caméra** (corrige la **détection**) — `camera_info` trompeur car il flue sans
 rendu. Les bugs 1-6 traitaient des symptômes au-dessus de ces deux causes.
 
-**État :** run nominal en validation, combinant tous les fix — **inflation 0.25** (entre dans les pièces),
-**RTF suffisant** (caméra nourrie), **waypoints à ~1,3 m** des tags (dans la portée 2 m, bug #9),
-**SmacPlanner2D (A\*)** pour les atteindre, **dwell 4 s** face au mur, et **mémoire 20 GB** (l'OOM à
-14 GB effondrait le RTF). Meilleur run mesuré à ce jour : **93,5 % couverture + 2 victimes** (id 0, 3,
-vrais IDs) ; objectif L18 = **≥90 % + ≥3 victimes en un run continu** + carte finale annotée (auto).
+**État intermédiaire :** un run nominal (mode hybride explore→patrouille) a atteint **90,6 % + 3 victimes
+(ids 0, 2, 3) + carte annotée** sans OOM, grâce au **lidar `gpu_lidar` ramené à 10 Hz** (vrai correctif
+de fuite, cf. §7bis) et au retry des waypoints. Archivé dans `results/examples/l18_nominal/`.
+
+---
+
+## 7bis. L18 — Pivot **conformité** : 100 % exploration autonome
+
+> Le tournant décisif du projet : un fix « qui marche » n'est pas forcément **conforme au sujet**.
+
+**Problème (conformité, pas technique).** La patrouille de waypoints qui rendait les 4 victimes fiables
+conduisait le robot **pile devant chaque tag** (ex. `(4.6, 4.6)` face nord = la position connue de
+`victim_0`). Or l'énoncé Projet B impose d'« explorer un environnement **inconnu**, localiser des
+victimes, **sans intervention humaine** ». Programmer la trajectoire avec les **coordonnées connues des
+victimes**, ce n'est plus de la *découverte autonome* — **c'est connaître la réponse**. Les waypoints
+d'*étape* (passer les portes) restaient défendables ; les poses *victimes* ne l'étaient pas.
+
+**Investigation (cours).** CM8 slide 17 décrit exactement le comportement attendu : après chaque
+frontière atteinte, *« the robot stops, 'looks' around (updating its SLAM map), and calculates the next
+best frontier »*. Notre `spin_and_scan` **opérationnalise ce « looks around »** — et le balayage caméra
+**capte les tags au passage, sans jamais savoir où ils sont**. La découverte des victimes peut donc être
+100 % autonome, dans l'esprit du cours.
+
+**Décision.** On **supprime toute la patrouille vers des poses-victimes** ; le livrable L18 est
+l'**exploration autonome SEULE** :
+- **Mode par défaut = exploration frontières** (`run.sh demo-tb4` lance l'explorateur, plus le
+  waypoint-follower). Le `frontier_explorer_node` génère ses buts depuis la carte SLAM en direct,
+  **aucun waypoint pré-enregistré**. Fichier `waypoints_tb4_rescue_arena.yaml` (poses-victimes)
+  **supprimé** ; modes patrouille/hybride conservés en **option**, requalifiés « couverture générique »
+  (zéro coordonnée de victime).
+- **`spin_and_scan` 360°** (`spin_scan_duration 12 s`) après chaque but → la caméra balaie **tous les
+  murs** de la pièce → tag capté quelle que soit l'orientation d'arrivée.
+- **Seuil d'arrêt poussé haut** (`coverage_stop_threshold` 0.90→0.99) pour que l'arrêt réel soit « plus
+  de frontières » (≈ tout exploré) et non un % de couverture : chasser les dernières frontières attire le
+  robot plus loin dans les angles. *(Hypothèse au moment de la décision ; l'expérience l'a partiellement
+  démentie — voir §7ter : la couverture-surface se complète avant l'inspection-caméra des angles.)*
+- **Caméra `always_on=1`** en continu (plus de coupure-pendant-l'explore, qui rendait le bridge fragile
+  → *0 image* → bug #8 ressuscité). La **fuite mémoire est maintenant contenue à la source** par le lidar
+  10 Hz (le leaker GPU dominant), donc couper la caméra n'est plus nécessaire.
+- **Arrêt propre** : quand l'exploration est finie, le node logge un marqueur `EXPLORATION_DONE` ; le
+  script (`run_demo_tb4.sh`, branche EXPLORE) le surveille puis arrête l'explorateur et **sauve + annote
+  la carte**. *(On a d'abord essayé `rclpy.shutdown()` dans le node : appelé depuis un callback de timer,
+  il ne débloque pas `rclpy.spin()` → le process se fige. D'où le watchdog côté script — voir §7ter.)*
+
+**Pourquoi c'est meilleur (et pas juste « conforme »).** Robuste **> rigide** : le routage inter-pièces
+par doorways (patrouille) était structurellement fragile (bugs #1-#9) ; l'exploration adaptative visite
+**déjà** toutes les pièces pour cartographier, et le spin 360° y capte les tags. On supprime une couche
+entière de fragilité **tout en** se mettant en règle avec l'énoncé. Le seul apport non couvert par les
+CM — le pipeline **AprilTag → projection `map` via tf2** — est **explicitement demandé** par le Projet B
+(tf2 vu en CM2-4 / TP7), donc légitime et à justifier dans le rapport.
+
+---
+
+## 7ter. L18 — Campagne de mesure de l'exploration pure (v20→v22) & la limite physique caméra
+
+> Confronter la décision « 100 % autonome » au réel. Trois runs instrumentés, deux bugs corrigés, et
+> une **limite physique** qui change la conclusion. Méthode : mesurer, pas supposer.
+
+**Deux bugs corrigés en passant.**
+- **Arrêt de l'explorateur qui se fige (v20).** Le node loggait « Exploration complete » puis **restait
+  vivant** : `rclpy.shutdown()` appelé *depuis un callback de timer* ne fait pas sortir `rclpy.spin()`
+  (process figé) → `ros2 launch` bloqué → la carte n'était jamais sauvée. *Fix :* le node logge un
+  marqueur **`EXPLORATION_DONE`**, et un **watchdog côté script** (branche EXPLORE de `run_demo_tb4.sh`,
+  surveille le marqueur + plafond de couverture + temps max) arrête l'explorateur et finalise.
+- **Carte annotée vide (v20).** `annotate_map.py` lisait `victims.json` via `data.values()`, mais le
+  format est `{"frame":"map","victims":[…]}` → il itérait `["map", [...]]` (aucun dict-victime) → **0
+  victime dessinée** malgré 2 détectées. *Fix :* gérer la clé `"victims"`.
+
+**La limite physique : portée caméra (2 m) ≪ portée LIDAR (12 m).**
+
+| Run | Config | Couverture | Victimes | Leçon |
+|---|---|---|---|---|
+| **v20** | explo pure, LIDAR 12 m, cam 320×240, arrêt 0.95 | 95,7 % | **2** (ids 0,1) | Le LIDAR 12 m **cartographie chaque pièce depuis la porte** → plus de frontière dedans → le robot n'y **entre pas** → la caméra ne s'approche jamais à <2 m des tags qu'il ne frôle pas. |
+| **v21** | LIDAR **3,5 m** + cam **640×480** (coupler les portées) | — | **échec** | Idée : LIDAR court → frontières persistent dans les pièces → le robot doit y entrer ; cam 640×480 → détection à ~4 m. **Mais** : 640×480 **affame le rendu caméra GPU sous WSL** (`0 image`, bug #8) **et** l'explo devient trop lente (couverture calée ~0.50). **Reverté.** |
+| **v22** | explo pure, retour 320×240 / 12 m, arrêt 0.99 (jusqu'à plus-de-frontières) | 97,2 % | **2** (ids 0,2) | Explorer **plus** (0.99 vs 0.95) ne change **pas** le compte : **couverture-surface ≠ couverture-caméra**. Les victimes captées varient (0,1 ou 0,2) selon le hasard du chemin, mais **plafond ≈ 2**. |
+
+**Cause racine confirmée.** Le tag 16 cm @ 320×240 n'est lu que jusqu'à **~2 m** ; le LIDAR voit à **12 m**.
+Donc « carte complète » se produit **bien avant** que le robot ne s'approche à 2 m de chaque mur. Monter
+la résolution caméra pour étendre la portée **casse** le rendu caméra fragile sous Ogre2/WSL. Réduire le
+LIDAR pour forcer l'entrée dans les pièces **ralentit trop** l'exploration. **L'exploration par frontières
+pure, dans cette arène cloisonnée, plafonne donc à ~2 victimes** — c'est une limite *physique*
+(capteurs + géométrie), pas un bug.
+
+**Conclusion & voie vers 4 (tension conformité ↔ complétude).** Capter les 4 victimes impose d'amener la
+caméra à <2 m de **chacun** des 4 murs-tags, donc de **visiter près de chaque angle**. La question de
+conformité n'est pas *« le robot passe-t-il près des victimes ? »* (il le faut, physiquement) mais *« le
+système utilise-t-il les coordonnées des victimes en entrée ? »*. La voie défendable = une **phase
+d'inspection autonome après cartographie** : dériver de la **carte SLAM** (étendue/segmentation en pièces,
+**pas** les positions victimes) des poses d'inspection ~1,3 m des murs extérieurs, balayées au spin →
+**recherche systématique du périmètre découvert**. Autonome (entrée = la carte), conforme (on inspecte
+*tous* les murs, les victimes ne sont pas un input). **Réalisé au §7quater.**
+
+---
+
+## 7quater. L18 — La mission **2 phases** : explorer puis inspecter (4/4 atteint)
+
+> La solution qui boucle le projet. Une 2ᵉ phase autonome qui dérive son parcours de la
+> carte, puis une chasse à la dérive SLAM jusqu'à un run propre 4/4.
+
+**Architecture.** Le run par défaut (`run.sh demo-tb4`) enchaîne **deux phases 100 %
+autonomes**, sans la moindre coordonnée de victime :
+1. **Exploration** par frontières → carte SLAM, arrêt à `coverage_stop 0.92` (assez pour
+   ≥90 %, et **tôt** pour borner le run, cf. dérive ci-dessous).
+2. **Inspection** — `generate_inspection_waypoints.py` lit `final_map.pgm` et émet **une
+   pose par pièce extérieure** ; le `waypoint_follower` les visite et **balaie au spin**.
+   Le node est l'exécuteur Nav2 d'une **tournée auto-planifiée depuis la carte** — pas un
+   parcours écrit à la main (cf. la distinction de conformité du §7bis).
+
+**Pourquoi le waypoint-follower redevient conforme ici.** Il n'est non-conforme que
+nourri d'un parcours **humain** (a fortiori les poses-victimes, supprimées). Nourri de
+poses **générées au runtime depuis la carte du robot**, c'est de la décision autonome.
+
+**La chasse à la dérive (campagne v23→v30).** Faire tourner le robot dans les coins a
+réveillé une **dérive SLAM rotationnelle** intermittente — chaque correctif en révélait un
+autre :
+
+| # | Symptôme | Cause | Fix |
+|---|---|---|---|
+| 1 | Explorateur **figé** après « complete » | `rclpy.shutdown()` depuis un callback de timer ne débloque pas `spin()` | Marqueur **`EXPLORATION_DONE`** + **watchdog côté script** |
+| 2 | Carte annotée **vide** (0 victime dessinée) | `annotate_map` lisait `data.values()` sur `{"victims":[…]}` | Gérer la clé `"victims"` |
+| 3 | Poses d'inspection **hors arène** (x≈8-9) | dérive → fausses cellules libres ; on prenait la cellule la **plus** lointaine | Percentile 98 + filtre outliers |
+| 4 | Couverture **88 %**, victime mal localisée | run **520 s** → dérive cumulée (les fausses frontières relançaient l'explo) | **Arrêt 0.92 + cap 300 s** (borne le run) |
+| 5 | 1 pose Nav2 **rejetée** → victime ratée | pose (reculée vers le centre) tombait en cellule inconnue/occupée | Générateur **snappe la pose sur cellule libre** (navigable) |
+| 6 | Va-et-vient inter-coins → **dérive** | ordre `SW→NW→SE→NE` **traverse** l'arène | Ordre en **boucle de périmètre** (par angle) |
+| 7 | `minimum_travel 0.3/0.5` pour calmer la dérive | **casse l'explo** (figée à 75 %, carte trop grossière) | **Revert 0.0/0.0** ; calmer la dérive autrement |
+| 8 | Spin 360° → **dérive rotationnelle** (carte ±9, couverture chute) | tour complet = beaucoup de rotation sur place = patinage cumulé | Pose **orientée face au mur** → **demi-tour** suffit (½ rotation) |
+| 9 | Runs qui déconnent en série (v27-v29) | **WSL/GPU dégradé** après ~10 runs (env pourtant « propre » : 0 orphelin, shm vide) | **`wsl --shutdown` / reboot** → état remis à zéro |
+
+**Résultat (v30, WSL fraîche).** **4 victimes (ids 0,1,2,3) + couverture 97,5 % + carte
+propre (zéro dérive) + carte annotée** → archivé dans `results/examples/l18_nominal/`. La
+couverture **monte** pendant l'inspection (0.94→0.975) : preuve que la dérive est matée.
+
+**Leçons.** (a) Une 2ᵉ phase « inspection dérivée de la carte » est l'outil propre pour
+combler le trou caméra-2 m **sans** sortir de l'autonomie. (b) La **rotation sur place**
+est l'ennemie du SLAM ici → viser le mur pour minimiser le spin. (c) Un environnement
+**fraîchement redémarré** vaut dix réglages quand l'état GPU/WSL a dérivé.
 
 ---
 

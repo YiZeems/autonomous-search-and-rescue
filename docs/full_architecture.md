@@ -17,7 +17,7 @@
 > ```
 >
 > For the ROS 2/Python folder layout see `docs/ros2_package_structure.md`.
-> For team roles and file ownership see `docs/team_roles.md`.
+> For team composition and roles see `docs/team.md`.
 
 ---
 

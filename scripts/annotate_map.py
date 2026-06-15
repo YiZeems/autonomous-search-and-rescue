@@ -52,7 +52,12 @@ def _load_victims(run_dir: Path) -> list[dict]:
     vj = run_dir / "victims.json"
     if vj.exists():
         data = json.loads(vj.read_text())
-        items = data.values() if isinstance(data, dict) else data
+        # victim_registry_node writes {"frame": "map", "victims": [ {...}, ... ]};
+        # also tolerate a bare list or an id-keyed dict {"0": {...}, ...}.
+        if isinstance(data, dict):
+            items = data["victims"] if "victims" in data else list(data.values())
+        else:
+            items = data
         out = []
         for v in items:
             if not isinstance(v, dict):

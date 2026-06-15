@@ -11,9 +11,14 @@ frontier_explorer_node:
     min_frontier_size: 3
     # How often to (re)evaluate frontiers and pick the next goal.
     replan_period_sec: 3.0
-    # Stop exploring once this fraction of the map is known (matches the BT
-    # supervisor and the project's 90% coverage success criterion).
-    coverage_stop_threshold: 0.90
+    # Stop exploring once this fraction of the map is known. Kept just ABOVE the
+    # 90 % deliverable on purpose: exploration only has to produce a CLEAN ≥90 %
+    # map — the per-room camera sweep is done by the autonomous inspection phase
+    # (run_demo_tb4 phase 2). Stopping early also bounds the run: pushing to 0.99
+    # / "no frontiers" made v23 run 520 s, long enough for SLAM to drift, spawn
+    # FAKE frontiers in the drifted area, chase them, and drift more — map ruined
+    # (coverage fell to 88 %, a victim mislocalised). 0.92 stops before that.
+    coverage_stop_threshold: 0.92
     # ── Frontier blacklisting (cf. CM8 "Inaccessible Frontiers") ──
     # World-metre bucket size used to key blacklisted frontiers (stable as the
     # map grows). Goals within this distance count as "the same" frontier.

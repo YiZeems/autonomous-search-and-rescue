@@ -53,6 +53,18 @@ def generate_launch_description():
             default_value="true",
             description="Use Gazebo simulation clock.",
         ),
+        DeclareLaunchArgument(
+            "dwell_sec",
+            default_value="4.0",
+            description="Seconds to pause at each dwell waypoint. The room-inspection "
+            "phase passes 12 s so the in-place spin completes a full 360° turn.",
+        ),
+        DeclareLaunchArgument(
+            "dwell_spin_speed",
+            default_value="0.6",
+            description="Rotate-in-place rate (rad/s) during the dwell so the camera "
+            "sweeps the room walls; 0 = dwell without spinning.",
+        ),
         Node(
             package="rescue_robot",
             executable="waypoint_follower_node",
@@ -63,6 +75,8 @@ def generate_launch_description():
                 "loop": LaunchConfiguration("loop"),
                 "goal_timeout_sec": LaunchConfiguration("goal_timeout_sec"),
                 "use_sim_time": LaunchConfiguration("use_sim_time"),
+                "dwell_sec": LaunchConfiguration("dwell_sec"),
+                "dwell_spin_speed": LaunchConfiguration("dwell_spin_speed"),
             }],
         ),
     ])

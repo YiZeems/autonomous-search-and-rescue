@@ -541,10 +541,14 @@ for mc in /motion_control /turtlebot4/motion_control; do
         && { echo "  safety_override=full sur ${mc}"; break; }
 done
 
-# ── ÉTAPE 8 : Navigation — exploration autonome (frontière) OU waypoints.
-#    IA712_EXPLORE=1  -> le robot explore tout seul (frontier_explorer_node)
-#    IA712_HYBRID=1   -> explore puis patrouille (garantit les victimes)
-#    sinon            -> suit le parcours de waypoints prédéfini.
+# ── ÉTAPE 8 : Navigation.
+#    (défaut)          -> EXPLORATION AUTONOME par frontières (frontier_explorer_node).
+#                         Mode L18, conforme à l'énoncé : le robot découvre tout seul un
+#                         environnement INCONNU et capte les victimes AprilTag par
+#                         balayage caméra (spin-and-scan), SANS connaître leurs positions.
+#    IA712_WAYPOINTS=1 -> suit une route de waypoints (mode manuel optionnel / repli démo).
+#    IA712_HYBRID=1    -> explore puis balaie une route de couverture GÉNÉRIQUE
+#                         (aucune coordonnée de victime — cf. waypoints_*.yaml).
 echo ""
 echo "[demo-tb4] ╔══════════════════════════════════════════╗"
 echo "[demo-tb4] ║   Navigation en cours — suivre RViz2     ║"
@@ -553,20 +557,18 @@ echo "[demo-tb4] ╚════════════════════
 echo ""
 
 if [ "${IA712_HYBRID:-0}" = "1" ]; then
-    # ── Mode HYBRIDE (L18) : exploration autonome pour la couverture, PUIS
-    #    patrouille de waypoints orientés face aux murs pour GARANTIR les victimes
-    #    dans un seul run continu (cf. TP10 followWaypoints + codex §8).
+    # ── Mode HYBRIDE (optionnel) : exploration autonome pour la couverture, PUIS
+    #    balayage d'une route de couverture GÉNÉRIQUE (centres de pièces / portes,
+    #    AUCUNE coordonnée de victime — cf. waypoints_*.yaml) pour re-balayer la caméra.
+    #    N.B. le mode L18 conforme est l'exploration autonome SEULE (branche par défaut).
     EXPLORE_SECS="${IA712_EXPLORE_SECS:-300}"
     COV_TARGET="${IA712_EXPLORE_COV:-0.85}"
     _RES="${IA712_RESULTS_DIR:-${REPO_ROOT}/results}"
     echo "[8/8] HYBRIDE phase 1/2 : exploration autonome (frontier) jusqu'à cov≥${COV_TARGET} ou ${EXPLORE_SECS}s"
-    # ── ANTI-FUITE GAZEBO ── L'exploration navigue au LIDAR ; la caméra ne sert qu'à
-    # la patrouille (détection). Le rendu caméra du serveur Gazebo FUIT ~35 MB/s (bug
-    # Ogre2/D3D12+WSL). On coupe donc le bridge caméra pendant l'explore : avec
-    # always_on=0 le capteur n'a plus d'abonné → ne rend plus → la fuite n'accumule pas
-    # pendant la phase la plus longue. Bridge relancé avant la patrouille (phase 2).
-    kill "${BRIDGE_PID}" 2>/dev/null \
-        && echo "  caméra OFF pendant l'exploration (anti-fuite rendu Gazebo)"
+    # Caméra always_on (détection fiable à chaque pose victime). La fuite mémoire du
+    # rendu GPU est contenue à la source par le LIDAR ramené à 10 Hz (le leaker dominant,
+    # cf. parcours.md #10) → plus besoin de couper la caméra (le faire la rendait fragile
+    # au re-spawn du bridge → 0 image → détection ratée).
     ros2 launch "${EXP_LAUNCH}" \
         use_sim_time:=true \
         base_frame:="${NAMESPACE}/base_link" \
@@ -585,39 +587,99 @@ if [ "${IA712_HYBRID:-0}" = "1" ]; then
     pkill -9 -f "frontier_explorer" 2>/dev/null || true
     kill -9 "${EXP_PID}" 2>/dev/null || true
     sleep 3
-    # Caméra ON pour la patrouille (détection victimes) : on relance le bridge.
-    echo "  caméra ON (patrouille) — relance du bridge + ré-abonnement apriltag"
-    ros2 run ros_gz_bridge parameter_bridge \
-        "${CAM_IGN}@sensor_msgs/msg/Image[ignition.msgs.Image" \
-        "${CAM_INFO_IGN}@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo" \
-        --ros-args \
-        -r "${CAM_IGN}:=/camera/image_raw" \
-        -r "${CAM_INFO_IGN}:=/camera/camera_info" \
-        >"${LOGDIR}/cam2.log" 2>&1 &
-    BRIDGE_PID=$!
-    sleep 5
-    echo "[8/8] HYBRIDE phase 2/2 : patrouille victimes (waypoints face-mur) → ${WAYPOINTS_FILE##*/}"
+    echo "[8/8] HYBRIDE phase 2/2 : balayage couverture générique → ${WAYPOINTS_FILE##*/}"
     ros2 launch "${WP_LAUNCH}" \
         waypoints_file:="${WAYPOINTS_FILE}" \
         loop:=false \
         use_sim_time:=true \
         >"${LOGDIR}/wp.log" 2>&1 &
     WP_PID=$!
-elif [ "${IA712_EXPLORE:-0}" = "1" ]; then
-    echo "[8/8] Exploration autonome (frontier_explorer_node)"
+elif [ "${IA712_WAYPOINTS:-0}" = "1" ]; then
+    echo "[8/8] Waypoint follower (mode manuel optionnel) → ${WAYPOINTS_FILE##*/}"
+    ros2 launch "${WP_LAUNCH}" \
+        waypoints_file:="${WAYPOINTS_FILE}" \
+        loop:=false \
+        use_sim_time:=true \
+        >"${LOGDIR}/wp.log" 2>&1 &
+    WP_PID=$!
+else
+    # DÉFAUT (L18, conforme énoncé) : MISSION AUTONOME EN 2 PHASES.
+    #   Phase 1 — exploration par frontières : le node génère ses buts depuis la carte
+    #     SLAM en direct (aucun waypoint pré-enregistré), balaie la caméra (spin-and-scan
+    #     = le « looks around » de CM8 slide 17) → cartographie + 1ères victimes.
+    #   Phase 2 — inspection des pièces découvertes (ci-dessous) : poses dérivées de LA
+    #     CARTE (zéro coordonnée de victime), balayées au spin → capte les tags des pièces
+    #     que l'explo a cartographiées de loin (limite caméra 2 m, cf. parcours §7ter).
+    #   Les deux phases sont 100 % autonomes (entrée = la carte du robot, pas un humain).
+    echo "[8/8] Phase 1/2 : Exploration autonome par frontières (frontier_explorer_node) — mode L18"
     ros2 launch "${EXP_LAUNCH}" \
         use_sim_time:=true \
         base_frame:="${NAMESPACE}/base_link" \
         >"${LOGDIR}/exploration.log" 2>&1 &
     WP_PID=$!
-else
-    echo "[8/8] Waypoint follower → ${WAYPOINTS_FILE##*/}"
-    ros2 launch "${WP_LAUNCH}" \
-        waypoints_file:="${WAYPOINTS_FILE}" \
-        loop:=false \
-        use_sim_time:=true \
-        >"${LOGDIR}/wp.log" 2>&1 &
-    WP_PID=$!
+    # ── Watchdog d'arrêt ── L'explorateur logge "EXPLORATION_DONE" quand il a fini
+    #   (couverture cible OU plus de frontières) mais ne se termine pas lui-même
+    #   (rclpy.shutdown depuis un callback ne débloque pas spin). On surveille donc
+    #   ce marqueur — plus un plafond de couverture et un temps max de sécurité —
+    #   puis on tue l'explorateur pour que le script finalise (carte + annotation).
+    EXPLORE_MAX_SECS="${IA712_EXPLORE_MAX_SECS:-300}"   # borne le run AVANT que SLAM ne dérive
+    EXPLORE_COV_CAP="${IA712_EXPLORE_COV_CAP:-0.95}"
+    _RES="${IA712_RESULTS_DIR:-${REPO_ROOT}/results}"
+    _s=0
+    while kill -0 "${WP_PID}" 2>/dev/null && [ "${_s}" -lt "${EXPLORE_MAX_SECS}" ]; do
+        if grep -q "EXPLORATION_DONE" "${LOGDIR}/exploration.log" 2>/dev/null; then
+            echo "[8/8] EXPLORATION_DONE détecté (${_s}s) → finalisation"
+            break
+        fi
+        _cov=$(tail -1 "${_RES}/coverage_over_time.csv" 2>/dev/null | cut -d, -f2)
+        if [ -n "${_cov}" ] && awk "BEGIN{exit !(${_cov} >= ${EXPLORE_COV_CAP})}" 2>/dev/null; then
+            echo "[8/8] plafond couverture ${_cov} ≥ ${EXPLORE_COV_CAP} (${_s}s) → finalisation"
+            break
+        fi
+        sleep 5; _s=$(( _s + 5 ))
+    done
+    [ "${_s}" -ge "${EXPLORE_MAX_SECS}" ] && echo "[8/8] temps max ${EXPLORE_MAX_SECS}s atteint → fin exploration"
+    pkill -9 -f "frontier_explorer" 2>/dev/null || true
+    kill -9 "${WP_PID}" 2>/dev/null || true
+    sleep 2
+
+    # ── PHASE 2 (L18) : INSPECTION AUTONOME DES PIÈCES DÉCOUVERTES ──────────────
+    #   La portée caméra (~2 m) ≪ portée LIDAR (12 m) : l'exploration cartographie les
+    #   pièces d'angle depuis leurs portes sans amener la caméra à <2 m des tags muraux
+    #   (cf. parcours §7ter → ~2 victimes en explo pure). On ajoute une 2ᵉ phase 100 %
+    #   autonome : on dérive de LA CARTE que le robot a construite (zéro coordonnée de
+    #   victime, zéro waypoint écrit à la main) une pose d'inspection par pièce extérieure,
+    #   et on la balaie au spin 360°. = recherche systématique du périmètre découvert.
+    if [ "${IA712_INSPECT:-1}" != "0" ]; then
+        echo "[8/8] Phase 2 : sauvegarde carte → génération des poses d'inspection DEPUIS la carte"
+        ros2 run nav2_map_server map_saver_cli -f "${_RES}/final_map" \
+            --ros-args -p save_map_timeout:=10.0 >/dev/null 2>&1 \
+            || echo "  [WARN] map_saver_cli (carte d'inspection) a échoué"
+        INSPECT_WP="${_RES}/inspection_waypoints.yaml"
+        python3 "${REPO_ROOT}/scripts/generate_inspection_waypoints.py" "${_RES}" "${INSPECT_WP}" 2>&1 \
+            | sed 's/^/  /' || true
+        if grep -q '{' "${INSPECT_WP}" 2>/dev/null; then
+            echo "[8/8] Phase 2 : patrouille d'inspection (spin 360° par pièce) — SLAM/Nav2/caméra toujours actifs"
+            ros2 launch "${WP_LAUNCH}" \
+                waypoints_file:="${INSPECT_WP}" \
+                loop:=false use_sim_time:=true \
+                dwell_sec:=8.0 dwell_spin_speed:=0.4 \
+                >"${LOGDIR}/inspection.log" 2>&1 &
+            INSPECT_PID=$!
+            # Le node waypoint s'arrête seul après la patrouille (rclpy.shutdown depuis son
+            # thread de nav fonctionne, contrairement à l'explorateur) ; garde-fou temps.
+            _is=0
+            while kill -0 "${INSPECT_PID}" 2>/dev/null && [ "${_is}" -lt "${IA712_INSPECT_MAX_SECS:-300}" ]; do
+                sleep 5; _is=$(( _is + 5 ))
+            done
+            kill -9 "${INSPECT_PID}" 2>/dev/null || true
+            pkill -9 -f "waypoint_follower" 2>/dev/null || true
+            echo "[8/8] Phase 2 terminée (${_is}s)"
+        else
+            echo "  [WARN] aucune pose d'inspection générée → on garde les victimes de l'exploration"
+        fi
+    fi
+    WP_PID=""   # déjà arrêté ; on saute le `wait` ci-dessous
 fi
 
 # Attendre la fin de la navigation (Ctrl+C pour exploration qui tourne en continu)
