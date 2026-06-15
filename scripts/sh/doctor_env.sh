@@ -5,13 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-echo "== System =="
+echo "System"
 echo "Architecture: $(uname -m)"
 echo "Kernel: $(uname -sr)"
 echo "Shell: ${SHELL:-unknown}"
 
 echo
-echo "== ROS 2 =="
+echo "ROS 2"
 echo "ROS_DISTRO=${ROS_DISTRO:-<not set>}"
 if command -v ros2 >/dev/null 2>&1; then
   echo "ros2: $(command -v ros2)"
@@ -26,7 +26,7 @@ else
 fi
 
 echo
-echo "== Gazebo =="
+echo "Gazebo"
 if command -v gazebo >/dev/null 2>&1; then
   gazebo --version || true
 else
@@ -44,7 +44,7 @@ else
 fi
 
 echo
-echo "== Current ROS overlay variables =="
+echo "Current ROS overlay variables"
 for var in COLCON_PREFIX_PATH AMENT_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH; do
   echo "-- $var --"
   value="${!var:-}"
@@ -56,7 +56,7 @@ for var in COLCON_PREFIX_PATH AMENT_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH; do
  done
 
 echo
-echo "== Potential stale workspace paths =="
+echo "Potential stale workspace paths"
 stale_found=0
 for var in COLCON_PREFIX_PATH AMENT_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH; do
   value="${!var:-}"
@@ -71,7 +71,7 @@ if [ "$stale_found" = "0" ]; then
 fi
 
 echo
-echo "== Recommended clean test =="
+echo "Recommended clean test"
 echo "unset COLCON_PREFIX_PATH AMENT_PREFIX_PATH CMAKE_PREFIX_PATH PYTHONPATH AMENT_TRACE_SETUP_FILES"
 echo "source /opt/ros/humble/setup.bash"
 echo "./scripts/run.sh build"

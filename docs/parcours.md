@@ -259,6 +259,88 @@ est l'ennemie du SLAM ici → viser le mur pour minimiser le spin. (c) Un enviro
 
 ---
 
+## 7quinquies. L18 — Le **Behavior Tree orchestre** la mission (conformité « décision = BT »)
+
+> Dernière passe de conformité : l'énoncé veut la **prise de décision par Behavior Tree,
+> pas par FSM**. Au départ notre BT ne faisait que **superviser** (attendre la carte,
+> guetter 90 %, publier `mission_done`) ; la séquence explore→inspection était en **bash**.
+
+**Décision.** On fait du BT le **vrai orchestrateur**. Deux nœuds d'action
+`StatefulActionNode` en C++ (BehaviorTree.CPP v3) pilotent les phases via des topics, les
+nœuds Python exécutant le travail (gated) :
+- **`ExplorePhase`** : publie `/mission/explore_enable=true` (démarre `frontier_explorer`),
+  RUNNING jusqu'à `/coverage ≥ threshold`, puis le coupe et renvoie SUCCESS.
+- **`InspectPhase`** : publie `/mission/inspect_enable=true` (le nouveau `inspection_node`
+  dérive les poses de `/map` et les balaie), RUNNING jusqu'à `/mission/inspect_done`.
+- Arbre (`mission.xml`) : `Sequence` **WaitForMap → ExplorePhase → InspectPhase →
+  VictimsFound → PublishMissionDone**. La `Sequence` (à mémoire) **résume** au nœud RUNNING
+  et n'avance qu'au SUCCESS → vraie séquence de phases, pas une FSM faite main.
+
+**Refactor associé.** Le cœur du générateur d'inspection passe dans le **package**
+(`rescue_robot/navigation/inspection_planner.py` : `poses_from_grid` sur l'OccupancyGrid
+ROS), partagé par le `inspection_node` (BT) et le script CLI (repli shell). L'explorateur
+gagne une **porte** `/mission/explore_enable` (défaut activé → le mode non-BT marche
+toujours). Le script garde un **repli** `IA712_BT_MISSION=0` (mêmes phases, orchestrées en
+bash) si `rescue_decision` n'est pas buildé.
+
+**Résultat (v32).** Mission **décidée par le BT** de bout en bout (`phase EXPLORE started`
+→ `phase INSPECT started` → `mission done published`), **4 victimes + 97,0 % + carte
+propre + trajectoire loggée**. C'est le run nominal archivé. *« BT, pas FSM » : satisfait
+non par la lettre (un BT qui regarde) mais par l'esprit (un BT qui décide).*
+
+---
+
+## 7sexies. L18 — Production du rendu : figures, vidéo replay, **capture RViz HD**
+
+> Livrables énoncé : « **carte finale marquée** avec les positions des victimes » + support
+> de présentation L18. On produit un jeu de médias **reproductible depuis les données** d'un
+> run nominal unique (`results/examples/l18_nominal/`), plus une **capture vidéo de la vraie
+> sortie RViz** (algorithmes en action sur toute la mission).
+
+**Médias data-driven** (`make_report_figures.py`, `make_mission_video.py`) : `mission_map`
+(carte + 4 victimes + tournée d'inspection), `trajectory_map` (parcours coloré par le temps
++ buts de frontières `info_gain`), `coverage_curve`, `mission_timeline` (bandes BT
+Phase 1/Phase 2 + instants de détection), `algorithms_two_phase` (un panneau par phase),
+`annotated_map_hd` (le livrable « carte marquée »), `mission_replay.mp4`. Tous régénérables
+en deux commandes pour **n'importe quel** run.
+
+**Saga « ça traverse les murs ? ».** Le relecteur voit la trajectoire **sembler couper des
+murs**. Triple vérification quantitative : la trajectoire (frame `map`, 2 Hz dense, saut max
+0,19 m) est à **100 % sur cellules libres — 0/568 segment ne traverse un mur** ; chaque
+croisement de mur tombe sur une **porte** (cellule libre, vérifié au point d'intersection).
+C'était donc un **artefact de rendu** (à l'échelle de l'arène, les portes ~0,25 m sont
+minuscules et le trait diagonal frôle le mur épais). *Décision finale, décisive :* dessiner
+les **murs PAR-DESSUS** le tracé (occlusion, `zorder` mur > parcours, markers au-dessus).
+Comme le parcours est sur cellules libres, le masquer ne retire rien — mais il **ne peut
+plus jamais apparaître sur un mur** : il n'est visible que dans les trouées → il **contourne
+visiblement les portes**. (Étapes intermédiaires écartées : ligne continue vs points épars,
+halo blanc, +DPI — utiles mais l'occlusion seule tranche.) *Leçon : une donnée correcte mais
+mal rendue **est** un bug ; la preuve quantitative ne suffit pas, il faut que l'œil la voie.*
+
+**Capture de la vraie sortie RViz sous WSLg.** `grim`/`wf-recorder` KO (Wayland sans
+`wlr-screencopy`), `x11grab` sur `:0` → écran noir. Solution : **serveur X virtuel
+`Xvfb` + RViz en GL logiciel + `x11grab`**. Deux pièges résolus :
+- **RMW** : la sim tourne en `rmw_cyclonedds_cpp` (+ `CYCLONEDDS_URI` sur `lo`). RViz lancé
+  avec le RMW **par défaut (FastDDS)** ne reçoit **aucun topic** (carte vide). → lancer RViz
+  avec le **même** RMW + URI. *(Même classe de bug que L16 : mismatch DDS = silence total.)*
+- **Vue** : sous Xvfb, **pas de gestionnaire de fenêtres** → RViz s'ouvre en ~700 px (vue 3D
+  minuscule, basse réso, mal cadrée). → fixer la **géométrie dans le `.rviz`** (`Window
+  Geometry` 1600×1000, dock droit masqué) + `TopDownOrtho Scale` (~80 → ~15 m visibles =
+  toute l'arène). Vue 3D ~4× plus grande, pleine fenêtre, capture HD `1600×1000`.
+
+**RTF : mesure et arbitrage.** `IA712_GZ_RT_RATE` n'agit qu'à la **génération** de l'arène ;
+le run réutilisant le `.sdf` baked (`real_time_update_rate=70` → RTF cible 0,7), pousser le
+rate à 150 sans régénérer est **sans effet**. Et même en régénérant à 150 : la machine
+**plafonne à ~0,8** (RViz logiciel + SLAM + Nav2 saturent le GPU) **et** la sim plus rapide
+laisse **moins de temps de stabilisation** par balayage → **3/4 victimes** au lieu de 4.
+*Décision : rester à rate 70* (0,7×, **4 victimes fiables, 97 %**) pour le run de rendu ; le
+gain de vitesse ne vaut pas une victime perdue.
+
+**Résultat.** Run de rendu **4/4 victimes, 97,36 %**, source unique de **8 figures + replay +
+vidéo RViz HD (1600×1000, 442 s) + screenshot HD**, tous cohérents (même run).
+
+---
+
 ## 8. Bugs d'outillage (transverses, instructifs)
 
 - **`pkill -f` qui s'auto-tue.** *Problème :* un nettoyage inline `pkill -9 -f "ign gazebo|…"` matchait
@@ -268,6 +350,14 @@ est l'ennemie du SLAM ici → viser le mur pour minimiser le spin. (c) Un enviro
 - **`rsyncDown_*_run` : perte de données.** *Problème :* `rsync --delete` n'excluait pas `experiments/`
   → un down-sync source→run écrasait les résultats de benchmark **générés** (coûteux). *Décision :*
   `--exclude='experiments/'` sur les 4 scripts ; flux artefacts = **run → branche**, jamais l'inverse.
+- **Courbes/trajectoires qui se cumulent entre runs.** *Problème :* `result_exporter` ne
+  réécrivait l'en-tête des CSV séries-temporelles (`coverage_over_time`, `victims_over_time`,
+  `trajectory`) que s'ils étaient absents/vides/à en-tête obsolète, **puis appendait** → un CSV
+  laissé par un run précédent **gardait ses lignes** et le nouveau run écrivait à la suite →
+  les figures montraient **plusieurs runs superposés** (faux « il traverse les murs / la courbe
+  remonte »). *Décision :* ces fichiers sont des **logs par run** (un nœud = une mission) →
+  **toujours repartir à zéro** (truncate + en-tête au démarrage), pas d'append cross-run.
+  *Leçon : un fichier de log par run doit être idempotent à l'ouverture, pas « append si présent ».*
 - **`.wslconfig memory` trop bas → OOM → RTF effondré.** *Problème :* en croyant gagner de la marge
   thermique, `memory` a été baissé `20→14 GB`. Mais le sim TB4 complet (gazebo + ~28 bridges + Nav2 +
   SLAM + caméra) **+ des bridges orphelins** des runs précédents (kill_sim incomplet) ont saturé la RAM

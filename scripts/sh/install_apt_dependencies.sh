@@ -32,7 +32,11 @@ sudo apt install -y \
   ros-humble-apriltag-msgs \
   ros-humble-behaviortree-cpp-v3 \
   python3-opencv \
-  python3-numpy
+  python3-numpy \
+  python3-matplotlib \
+  python3-pil \
+  ffmpeg \
+  xvfb
 
 # Why these (added for L16):
 #   rmw-cyclonedds-cpp : WSL DDS discovery is flaky with Fast-RTPS; the win
@@ -42,6 +46,12 @@ sudo apt install -y \
 #   behaviortree-cpp-v3 : the rescue_decision bt_runner mission tree.
 #   python3-opencv / python3-numpy : used by scripts/generate_apriltag_models.py
 #       to build the voxel AprilTag models (cv2.aruco tag36h11).
+# Why these (added for L18 report media):
+#   python3-matplotlib / python3-pil : report figures (make_report_figures.py) +
+#       replay video (make_mission_video.py) + annotated map (annotate_map.py).
+#   ffmpeg : encodes the replay MP4 (and the optional RViz screen capture).
+#   xvfb : optional — virtual X server to record the live RViz output to video on a
+#       headless / WSLg machine (Wayland grim/wf-recorder is unsupported under WSLg).
 
 # TurtleBot3 Gazebo packages are usually available on AMD64/WSL2, but may be
 # missing from apt on ARM64. Install them only when apt can locate them.

@@ -44,6 +44,7 @@ setup(
             'mock_coverage_publisher = rescue_robot.mocks.mock_coverage_publisher:main',
             'bt_supervisor_node = rescue_robot.bt.bt_supervisor_node:main',
             'waypoint_follower_node = rescue_robot.navigation.waypoint_follower_node:main',
+            'inspection_node = rescue_robot.navigation.inspection_node:main',
             'tf_relay_node = rescue_robot.utils.tf_relay_node:main',
             'cmd_vel_relay_node = rescue_robot.utils.cmd_vel_relay_node:main',
             'scan_throttle_node = rescue_robot.utils.scan_throttle_node:main',

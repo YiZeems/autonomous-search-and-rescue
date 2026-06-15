@@ -396,92 +396,12 @@ uv python install 3.10
 ./scripts/run.sh uv-sync
 ```
 
----
-
-## Git workflow
-
-### Branches
-
-```text
-main           stable demo only — protected, PR required
-dev            integration branch — protected, PR required
-dev/yimou      Yimou's working branch
-dev/julien     Julien's working branch
-dev/hugo       Hugo's working branch
-dev/paul       Paul's working branch
-```
-
-### Clone and set up your branch
-
-```bash
-git clone https://github.com/YiZeems/autonomous-search-and-rescue.git
-cd autonomous-search-and-rescue
-git checkout dev/<your-name>
-```
-
-### Daily workflow
-
-```bash
-git pull origin dev/<your-name>
-# ... make changes in your module folder ...
-git add .
-git commit -m "feat: describe what you did"
-git push origin dev/<your-name>
-```
-
-Then open a Pull Request from `dev/<your-name>` → `dev` on GitHub.
-
-### Integration workflow (Yimou / A role)
-
-```bash
-git checkout dev
-git pull origin dev
-git merge dev/julien     # after PR is approved
-./scripts/run.sh build
-./scripts/run.sh mock
-git push origin dev
-```
-
-Repeat for each member's branch.
-
-### When to merge to dev
-
-Merge when a module has a stable small update: skeleton starts, launch runs, mock works. Merge `dev` → `main` only at stable milestones.
-
-### Files only A (Yimou) should touch
-
-`README.md`, `CONTRIBUTING.md`, `.github/`, `package.xml`, `setup.py`, `launch/bringup.launch.py`, `launch/mock_system.launch.py`, `docs/interfaces.md`.
 
 ---
 
-## GitHub Protection Rules
+## Git
 
-### Protect `main`
-
-Settings: require PR before merging, ≥1 approval, Code Owners review required, status checks pass, block force pushes and deletions.
-
-Nobody pushes directly to `main`, not even A.
-
-### Protect `dev`
-
-Settings: require PR, status checks pass, Code Owners review, block force pushes and deletions.
-
-A manages merges into `dev`.
-
-### Personal branches
-
-`a-integration`, `b-exploration`, `c-simulation`, `d-results` — push freely without PR overhead.
-
-### CODEOWNERS
-
-File: `.github/CODEOWNERS`. Replace `@YiZeems` with A's real GitHub username before using it.
-
-### CI policy
-
-The first CI is intentionally light:
-
-- checks that `build/`, `install/`, `log/` are not committed;
-- checks that required files exist;
-- checks Python syntax.
-
-We avoid Gazebo/Nav2 CI because it is heavy and fragile for a student project.
+Standard workflow: feature branches → Pull Request → review → merge into the
+integration branch; `main` holds stable demo milestones. Keep `build/`, `install/`
+and `log/` out of commits (the CI checks this). Per-member task distribution is in
+the project report (PDF).

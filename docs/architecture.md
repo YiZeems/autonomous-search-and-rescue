@@ -6,8 +6,8 @@
 
 ```mermaid
 flowchart LR
-    subgraph SIM["Gazebo Classic — disaster_world.world"]
-        ROBOT[TurtleBot3 Waffle Pi]
+    subgraph SIM["Ignition Gazebo Fortress — rescue_arena.sdf"]
+        ROBOT[TurtleBot4]
         TAGS[(AprilTags 36h11)]
     end
 
@@ -21,17 +21,21 @@ flowchart LR
     SLAM -- /map --> METRIC
 
     APRIL -- /detections + TF cam→tag --> REG[victim_registry_node]
-    REG -- /victims/markers --> RVIZ
+    REG -- /victims_map --> RVIZ
     REG -- victims.json --> FS[(disk)]
 
-    EXPLORE[team_b_exploration<br/>greedy or info_gain] -- NavigateToPose --> NAV2
-    BT[team_b_decision<br/>BT runner] -- goal --> EXPLORE
-    BT -- query --> REG
-    BT -- query --> METRIC
+    EXPLORE[frontier_explorer_node] -- NavigateToPose --> NAV2
+    INSPECT[inspection_node] -- NavigateToPose --> NAV2
+
+    BT[rescue_decision<br/>BT runner] -- /mission/explore_enable --> EXPLORE
+    BT -- /mission/inspect_enable --> INSPECT
+    INSPECT -- /mission/inspect_done --> BT
+    BT -- /mission_done --> FS
 
     NAV2[Nav2 stack<br/>planner + controller + BT navigator] -- /cmd_vel --> ROBOT
 
     METRIC[coverage_evaluator] -- /coverage --> BT
+    METRIC -- /coverage --> EXPLORE
     METRIC -- CSV --> FS
 
     RVIZ[RViz2]
@@ -42,47 +46,40 @@ flowchart LR
 ## 2. Flux clés
 
 1. **SLAM en continu** publie `/map` (OccupancyGrid) et la TF `map → odom`.
-2. **L'explorateur** (frontière gloutonne ou information-gain) lit `/map`, choisit un goal, l'envoie à Nav2 via `nav2_msgs/action/NavigateToPose`.
-3. **La caméra** alimente `apriltag_ros` qui publie une TF `camera_link → tag_<id>` + un message `/detections`.
-4. **`victim_registry_node`** compose la chaîne `map → camera_link → tag_<id>` via `tf2_ros::Buffer::lookupTransform()` et enregistre la victime (si nouvelle) avec sa pose dans `map`.
-5. **Le BT global** synchronise tout : pause de l'exploration au moment d'une détection, log, reprise.
-6. **Critère d'arrêt :** couverture ≥ 90 % **OU** absence de nouvelle frontière **OU** toutes les victimes attendues trouvées.
+2. **Phase 1 — Exploration.** Le BT lève `/mission/explore_enable` ; `frontier_explorer_node` lit `/map`, détecte les frontières (avec *blacklist* des frontières inatteignables), choisit la meilleure et l'envoie à Nav2 via `nav2_msgs/action/NavigateToPose`. La phase tourne (`RUNNING`) jusqu'à `/coverage ≥ 0.90`.
+3. **Phase 2 — Inspection.** Le BT lève `/mission/inspect_enable` ; `inspection_node` dérive de `/map` une pose par pièce (sans aucune coordonnée de victime) et les visite l'une après l'autre pour exposer les AprilTags muraux à la caméra, puis verrouille `/mission/inspect_done` (`RUNNING` jusqu'à ce flag).
+4. **La caméra** alimente `apriltag_ros` qui publie une TF `camera_link → tag_<id>` + un message `/detections`.
+5. **`victim_registry_node`** compose la chaîne `map → camera_link → tag_<id>` via `tf2_ros::Buffer::lookupTransform()` et enregistre chaque victime (si nouvelle) avec sa pose dans `map`, publiée sur `/victims_map` et persistée dans `results/victims.json`.
+6. **Le BT global** orchestre les deux phases dans l'ordre, surface le compte de victimes (`VictimsFound`), puis verrouille `/mission_done`.
+7. **Critère de fin :** couverture ≥ 90 % atteinte (fin Phase 1) **puis** toutes les pièces inspectées (`/mission/inspect_done`). Run nominal : 4/4 victimes, ~97 % de couverture.
 
-## 3. Behavior Tree global
+## 3. Behavior Tree global (2 phases)
+
+Le BT (BehaviorTree.CPP **v3**, runner `src/bt_runner.cpp`, arbre `bt_xml/mission.xml`) **orchestre** la mission en deux phases — pas de FSM. Une simple `Sequence` *à mémoire* (elle reprend sur l'enfant `RUNNING` et n'avance qu'au `SUCCESS`) enchaîne les phases dans l'ordre.
 
 ```xml
-<root BTCPP_format="4">
-  <BehaviorTree ID="ExplorationMission">
-    <Sequence>
-      <SetBlackboard output_key="victims_found" value="0"/>
-      <ReactiveFallback>
-        <CoverageReached threshold="0.9"/>
-        <Sequence>
-          <RetryUntilSuccessful num_attempts="3">
-            <Sequence>
-              <SelectNextFrontier output_pose="{goal}"/>
-              <NavigateToPose goal="{goal}"/>
-            </Sequence>
-          </RetryUntilSuccessful>
-          <ReactiveSequence>
-            <IsVictimDetected target="{victim_pose}"/>
-            <RegisterVictim pose="{victim_pose}"/>
-            <Wait duration="1.0"/>
-          </ReactiveSequence>
-        </Sequence>
-      </ReactiveFallback>
-      <NavigateToPose goal="{home_pose}"/>
+<root main_tree_to_execute="Mission">
+  <BehaviorTree ID="Mission">
+    <Sequence name="search_and_rescue_mission">
+      <WaitForMap name="wait_for_slam_map"/>
+      <ExplorePhase name="explore_until_coverage" threshold="0.90"/>
+      <InspectPhase name="inspect_discovered_rooms"/>
+      <VictimsFound name="report_victims" min_count="0"/>
+      <PublishMissionDone name="finalize"/>
     </Sequence>
   </BehaviorTree>
 </root>
 ```
 
-Nodes BT custom (paquet `team_b_decision`) :
+Nodes BT custom (paquet `rescue_decision`) :
 
-- `SelectNextFrontier` *(Action)* — interroge le node d'exploration.
-- `CoverageReached` *(Condition)* — lit `/coverage` publié par `coverage_evaluator`.
-- `IsVictimDetected` *(Condition)* — interroge le registre de victimes.
-- `RegisterVictim` *(Action)* — appelle le service du registre.
+- `WaitForMap` *(Condition)* — `FAILURE` tant que SLAM ne publie pas `/map` (la séquence retente au tick suivant).
+- `ExplorePhase` *(Action)* — lève `/mission/explore_enable` (déclenche `frontier_explorer_node`) ; `RUNNING` jusqu'à `/coverage ≥ threshold` (0.90), puis baisse le flag (stoppe l'explorateur) et renvoie `SUCCESS`.
+- `InspectPhase` *(Action)* — lève `/mission/inspect_enable` (déclenche `inspection_node`) ; `RUNNING` jusqu'à réception de `/mission/inspect_done`.
+- `VictimsFound` *(Condition)* — `SUCCESS` quand `/victims_map` contient ≥ `min_count` poses (ici 0 → ne bloque jamais, sert au log du compte).
+- `PublishMissionDone` *(Action)* — verrouille `std_msgs/Bool true` sur `/mission_done`.
+
+Après le `SUCCESS` de la `Sequence`, le runner reste actif pour garder `/mission_done` verrouillé (et Groot connecté).
 
 ## 4. TF tree cible
 
@@ -94,7 +91,7 @@ map ──> odom ──> base_footprint ──> base_link ──┬──> base_
 
 - `map → odom` publié par **`slam_toolbox`**.
 - `odom → base_footprint` publié par `robot_state_publisher` (Gazebo plugin).
-- `base_link → camera_link` issu de l'URDF TurtleBot3 Waffle Pi.
+- `base_link → camera_link` issu de l'URDF TurtleBot4.
 - `camera_link → tag_<id>` publié par **`apriltag_ros`**.
 
 ## 5. Topics & services principaux
@@ -105,24 +102,29 @@ map ──> odom ──> base_footprint ──> base_link ──┬──> base_
 | `/odom`                              | `nav_msgs/Odometry`                          | Gazebo plugin       | `slam_toolbox`, Nav2 |
 | `/camera/image_raw`                  | `sensor_msgs/Image`                          | Gazebo plugin       | `apriltag_ros`       |
 | `/camera/camera_info`                | `sensor_msgs/CameraInfo`                     | Gazebo plugin       | `apriltag_ros`       |
-| `/map`                               | `nav_msgs/OccupancyGrid`                     | `slam_toolbox`      | `team_b_exploration`, `coverage_evaluator`, Nav2 |
+| `/map`                               | `nav_msgs/OccupancyGrid`                     | `slam_toolbox`      | `frontier_explorer`, `inspection_node`, `coverage_evaluator`, Nav2 |
 | `/detections`                        | `apriltag_msgs/AprilTagDetectionArray`       | `apriltag_ros`      | `victim_registry`    |
-| `/coverage`                          | `std_msgs/Float32`                           | `coverage_evaluator`| BT (`CoverageReached`) |
-| `/victims/markers`                   | `visualization_msgs/MarkerArray`             | `victim_registry`   | RViz                 |
-| `/list_victims` (service)            | custom                                       | `victim_registry`   | démo / BT            |
-| `navigate_to_pose` (action)          | `nav2_msgs/action/NavigateToPose`            | Nav2                | BT / explorateur     |
+| `/coverage`                          | `std_msgs/Float32`                           | `coverage_evaluator`| BT (`ExplorePhase`), `frontier_explorer` |
+| `/victims_map`                       | `geometry_msgs/PoseArray`                    | `victim_registry`   | BT (`VictimsFound`), `result_exporter`, RViz |
+| `/mission/explore_enable`            | `std_msgs/Bool`                              | BT (`ExplorePhase`) | `frontier_explorer`  |
+| `/mission/inspect_enable`            | `std_msgs/Bool`                              | BT (`InspectPhase`) | `inspection_node`    |
+| `/mission/inspect_done`              | `std_msgs/Bool` (latched)                    | `inspection_node`   | BT (`InspectPhase`)  |
+| `/mission_done`                      | `std_msgs/Bool` (latched)                    | BT (`PublishMissionDone`) | démo / supervision |
+| `/exploration/frontiers`             | `visualization_msgs/MarkerArray`             | `frontier_explorer` | RViz                 |
+| `/inspection/poses`                  | `visualization_msgs/MarkerArray`             | `inspection_node`   | RViz                 |
+| `navigate_to_pose` (action)          | `nav2_msgs/action/NavigateToPose`            | Nav2                | `frontier_explorer`, `inspection_node` |
 
 ## 6. Choix techniques (cf. [pistes_projet-b.md §2](../../doc/orig/pistes_projet-b.md))
 
 | Brique                | Choix                                              | Justification (cours / projet)                                                  |
 | --------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------- |
 | Distribution ROS 2    | **Humble** (LTS)                                   | Confirmée `rosversion -d` ; stack Nav2/slam_toolbox mature                      |
-| OS                    | Ubuntu 22.04 jammy (WSL2 chez Julien)              | Compatible ROS 2 Humble                                                         |
-| Simulateur            | **Gazebo Classic 11**                              | Plus stable que Fortress sur WSL ; doc Nav2/TurtleBot3 alignée                  |
-| Robot                 | **TurtleBot3 Waffle Pi**                           | LIDAR 2D **+ caméra RGB** (requise pour AprilTag)                               |
+| OS                    | Ubuntu 22.04 jammy (WSL2)              | Compatible ROS 2 Humble                                                         |
+| Simulateur            | **Ignition Gazebo Fortress**                       | Stack TurtleBot4 native ; monde `rescue_arena.sdf` (plugins `ignition-gazebo-*`) |
+| Robot                 | **TurtleBot4**                                     | LIDAR 2D **+ caméra RGB** (requise pour AprilTag)                               |
 | SLAM                  | **`slam_toolbox`** mode `async`                    | Loop closure natif (CM7), intégration Nav2                                      |
 | Navigation            | **Nav2** complet                                   | Planner + controller + recoveries + BT navigator                                |
-| Décision              | **BehaviorTree.CPP** via `nav2_behavior_tree`      | Réutilise l'infra BT existante ; Groot2 pour debug ; **interdiction des FSM**   |
+| Décision              | **BehaviorTree.CPP v3** (runner `rescue_decision`) | Arbre 2 phases (`mission.xml`), Groot pour debug ; **interdiction des FSM**     |
 | Détection cibles      | **`apriltag_ros`** (tag36h11)                      | Robuste, IDs uniques, publie TF out-of-the-box (cf. CM6 « Perception »)         |
 | Exploration v1        | **Frontière gloutonne** (`m-explore-ros2` ou maison) | Baseline attendue par l'énoncé (cf. CM8)                                      |
 | Exploration v2 (bonus)| **Information-Gain** maison                        | Comparatif quantitatif (cf. CM8 § Information-Theoretic Exploration)            |
@@ -139,9 +141,15 @@ map ──> odom ──> base_footprint ──> base_link ──┬──> base_
 
 ## 8. Liens vers les paquets
 
-- [`ros2_ws/src/team_b_bringup/`](../ros2_ws/src/team_b_bringup/) — Launch & configs
-- [`ros2_ws/src/team_b_world/`](../ros2_ws/src/team_b_world/) — Monde Gazebo + AprilTags
-- [`ros2_ws/src/team_b_exploration/`](../ros2_ws/src/team_b_exploration/) — Exploration nodes
-- [`ros2_ws/src/team_b_perception/`](../ros2_ws/src/team_b_perception/) — Victim registry
-- [`ros2_ws/src/team_b_decision/`](../ros2_ws/src/team_b_decision/) — BT runner & BT nodes
-- [`ros2_ws/src/team_b_metrics/`](../ros2_ws/src/team_b_metrics/) — Coverage & benchmarks
+- [`ros2_ws/src/rescue_bringup/`](../ros2_ws/src/rescue_bringup/) — Launch & configs
+- [`ros2_ws/src/rescue_world/`](../ros2_ws/src/rescue_world/) — Mondes Ignition (`rescue_arena.sdf`) + AprilTags
+- [`ros2_ws/src/rescue_robot/`](../ros2_ws/src/rescue_robot/) — Mégapaquet Python : exploration, perception (victim registry), navigation/inspection, résultats/métriques, utils, mocks
+- [`ros2_ws/src/rescue_decision/`](../ros2_ws/src/rescue_decision/) — BT runner (`src/bt_runner.cpp`) & arbre (`bt_xml/mission.xml`) en BehaviorTree.CPP v3
+
+## 9. Lancement un-clic
+
+```bash
+ros2 launch rescue_bringup bringup_tb4.launch.py
+```
+
+Démarre la stack complète (Ignition Gazebo Fortress + TurtleBot4 + SLAM + Nav2 + apriltag_ros + nœuds `rescue_robot` + BT `rescue_decision`). Run nominal : **4/4 victimes**, **~97 % de couverture**.

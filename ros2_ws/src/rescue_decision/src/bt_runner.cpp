@@ -33,8 +33,20 @@ struct MissionContext
   std::atomic<bool> map_received{false};
   std::atomic<float> coverage{0.0f};
   std::atomic<int> victim_count{0};
+  std::atomic<bool> inspect_done{false};
   rclcpp::Node::SharedPtr node;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr done_pub;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr explore_enable_pub;  // start/stop exploration
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr inspect_enable_pub;  // trigger inspection
+
+  void set_explore(bool on)
+  {
+    std_msgs::msg::Bool m; m.data = on; explore_enable_pub->publish(m);
+  }
+  void set_inspect(bool on)
+  {
+    std_msgs::msg::Bool m; m.data = on; inspect_enable_pub->publish(m);
+  }
 };
 
 class WaitForMap : public BT::ConditionNode
@@ -98,6 +110,83 @@ public:
     return ctx_->victim_count >= min_count ? BT::NodeStatus::SUCCESS
                                            : BT::NodeStatus::FAILURE;
   }
+
+private:
+  std::shared_ptr<MissionContext> ctx_;
+};
+
+// ── Mission ORCHESTRATION action nodes ─────────────────────────────────────
+// These make the BT the decision-maker: it starts exploration, waits until the
+// coverage target, then starts the inspection phase and waits for it to finish.
+// The actual work runs in the Python nodes, gated by the topics published here.
+
+class ExplorePhase : public BT::StatefulActionNode
+{
+public:
+  ExplorePhase(const std::string & name, const BT::NodeConfiguration & cfg,
+               std::shared_ptr<MissionContext> ctx)
+  : BT::StatefulActionNode(name, cfg), ctx_(std::move(ctx)) {}
+
+  static BT::PortsList providedPorts()
+  {
+    return {BT::InputPort<double>("threshold", 0.90, "stop exploring at this coverage ratio")};
+  }
+
+  BT::NodeStatus onStart() override
+  {
+    ctx_->set_explore(true);  // enable the frontier explorer
+    RCLCPP_INFO(ctx_->node->get_logger(), "[BT] phase EXPLORE started (explore_enable=true)");
+    return BT::NodeStatus::RUNNING;
+  }
+
+  BT::NodeStatus onRunning() override
+  {
+    double threshold = 0.90;
+    getInput("threshold", threshold);
+    if (ctx_->coverage >= threshold) {
+      ctx_->set_explore(false);  // stop the explorer → free Nav2 for inspection
+      RCLCPP_INFO(ctx_->node->get_logger(),
+                  "[BT] phase EXPLORE done — coverage %.1f%% >= %.0f%%",
+                  ctx_->coverage * 100.0f, threshold * 100.0);
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::RUNNING;
+  }
+
+  void onHalted() override { ctx_->set_explore(false); }
+
+private:
+  std::shared_ptr<MissionContext> ctx_;
+};
+
+class InspectPhase : public BT::StatefulActionNode
+{
+public:
+  InspectPhase(const std::string & name, const BT::NodeConfiguration & cfg,
+               std::shared_ptr<MissionContext> ctx)
+  : BT::StatefulActionNode(name, cfg), ctx_(std::move(ctx)) {}
+
+  static BT::PortsList providedPorts() { return {}; }
+
+  BT::NodeStatus onStart() override
+  {
+    ctx_->set_explore(false);   // make sure the explorer is stopped
+    ctx_->inspect_done = false;
+    ctx_->set_inspect(true);    // trigger the inspection node
+    RCLCPP_INFO(ctx_->node->get_logger(), "[BT] phase INSPECT started (inspect_enable=true)");
+    return BT::NodeStatus::RUNNING;
+  }
+
+  BT::NodeStatus onRunning() override
+  {
+    if (ctx_->inspect_done) {
+      RCLCPP_INFO(ctx_->node->get_logger(), "[BT] phase INSPECT done");
+      return BT::NodeStatus::SUCCESS;
+    }
+    return BT::NodeStatus::RUNNING;
+  }
+
+  void onHalted() override {}
 
 private:
   std::shared_ptr<MissionContext> ctx_;
@@ -170,6 +259,11 @@ int main(int argc, char ** argv)
   // Latched so late subscribers (result exporter, demo scripts) still get it.
   ctx->done_pub = node->create_publisher<std_msgs::msg::Bool>(
     "/mission_done", rclcpp::QoS(1).transient_local());
+  // Latched phase commands so the Python nodes get them even if they connect late.
+  ctx->explore_enable_pub = node->create_publisher<std_msgs::msg::Bool>(
+    "/mission/explore_enable", rclcpp::QoS(1).transient_local());
+  ctx->inspect_enable_pub = node->create_publisher<std_msgs::msg::Bool>(
+    "/mission/inspect_enable", rclcpp::QoS(1).transient_local());
 
   auto map_sub = node->create_subscription<nav_msgs::msg::OccupancyGrid>(
     "/map", rclcpp::QoS(1).transient_local(),
@@ -187,6 +281,9 @@ int main(int argc, char ** argv)
     [ctx](geometry_msgs::msg::PoseArray::ConstSharedPtr m) {
       ctx->victim_count = static_cast<int>(m->poses.size());
     });
+  auto inspect_done_sub = node->create_subscription<std_msgs::msg::Bool>(
+    "/mission/inspect_done", rclcpp::QoS(1).transient_local(),
+    [ctx](std_msgs::msg::Bool::ConstSharedPtr m) { ctx->inspect_done = m->data; });
 
   BT::BehaviorTreeFactory factory;
   factory.registerBuilder<WaitForMap>(
@@ -203,6 +300,16 @@ int main(int argc, char ** argv)
     "VictimsFound",
     [ctx](const std::string & n, const BT::NodeConfiguration & c) {
       return std::make_unique<VictimsFound>(n, c, ctx);
+    });
+  factory.registerBuilder<ExplorePhase>(
+    "ExplorePhase",
+    [ctx](const std::string & n, const BT::NodeConfiguration & c) {
+      return std::make_unique<ExplorePhase>(n, c, ctx);
+    });
+  factory.registerBuilder<InspectPhase>(
+    "InspectPhase",
+    [ctx](const std::string & n, const BT::NodeConfiguration & c) {
+      return std::make_unique<InspectPhase>(n, c, ctx);
     });
   factory.registerBuilder<MissionLog>(
     "MissionLog",

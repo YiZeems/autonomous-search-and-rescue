@@ -509,9 +509,11 @@ if [ "${IA712_VICTIM_REGISTRY:-1}" = "1" ]; then
 fi
 
 if [ "${IA712_BT:-1}" = "1" ]; then
-    # Mission Behavior Tree (BehaviorTree.CPP v3). Monitor passif : attend /map,
-    # supervise /coverage >= 90%, publie /mission_done (latched). Binaire en
-    # chemin absolu pour contourner les soucis d'overlay NFS (cf. #8/#26).
+    # Mission Behavior Tree (BehaviorTree.CPP v3). ORCHESTRATEUR : Sequence
+    # WaitForMap → ExplorePhase (gère /mission/explore_enable jusqu'à couverture)
+    # → InspectPhase (gère /mission/inspect_enable jusqu'à /mission/inspect_done)
+    # → VictimsFound → /mission_done (latched). La décision (quand explorer / quand
+    # inspecter / mission finie) est dans le BT. Binaire en chemin absolu (overlay NFS).
     BT_BIN="${WS_INSTALL}/rescue_decision/lib/rescue_decision/bt_runner"
     BT_XML="${WS_INSTALL}/rescue_decision/share/rescue_decision/bt_xml/mission.xml"
     if [ -x "${BT_BIN}" ] && [ -f "${BT_XML}" ]; then
@@ -542,13 +544,13 @@ for mc in /motion_control /turtlebot4/motion_control; do
 done
 
 # ── ÉTAPE 8 : Navigation.
-#    (défaut)          -> EXPLORATION AUTONOME par frontières (frontier_explorer_node).
-#                         Mode L18, conforme à l'énoncé : le robot découvre tout seul un
-#                         environnement INCONNU et capte les victimes AprilTag par
-#                         balayage caméra (spin-and-scan), SANS connaître leurs positions.
-#    IA712_WAYPOINTS=1 -> suit une route de waypoints (mode manuel optionnel / repli démo).
-#    IA712_HYBRID=1    -> explore puis balaie une route de couverture GÉNÉRIQUE
-#                         (aucune coordonnée de victime — cf. waypoints_*.yaml).
+#    (défaut)            -> MISSION ORCHESTRÉE PAR LE BEHAVIOR TREE (L18, conforme énoncé) :
+#                           le BT décide exploration → inspection → mission_done. Le robot
+#                           découvre seul un environnement INCONNU et localise les victimes
+#                           AprilTag, SANS connaître leurs positions (entrée = sa propre carte).
+#    IA712_BT_MISSION=0  -> même mission 2 phases mais orchestrée par le script (repli sans BT).
+#    IA712_WAYPOINTS=1   -> suit une route de waypoints (mode manuel optionnel / repli démo).
+#    IA712_HYBRID=1      -> explore puis balaie une route de couverture GÉNÉRIQUE.
 echo ""
 echo "[demo-tb4] ╔══════════════════════════════════════════╗"
 echo "[demo-tb4] ║   Navigation en cours — suivre RViz2     ║"
@@ -602,16 +604,48 @@ elif [ "${IA712_WAYPOINTS:-0}" = "1" ]; then
         use_sim_time:=true \
         >"${LOGDIR}/wp.log" 2>&1 &
     WP_PID=$!
+elif [ "${IA712_BT_MISSION:-1}" = "1" ] && [ "${IA712_BT:-1}" = "1" ] && [ -n "${BT_PID:-}" ]; then
+    # DÉFAUT (L18, conforme énoncé) : MISSION ORCHESTRÉE PAR LE BEHAVIOR TREE.
+    #   Le bt_runner (lancé en 7b) décide : ExplorePhase → InspectPhase → /mission_done.
+    #   Ici on ne fait que LANCER les nœuds gated et attendre le signal du BT :
+    #     - frontier_explorer : exploration, démarrée/arrêtée par /mission/explore_enable ;
+    #     - inspection_node   : inactif jusqu'à /mission/inspect_enable, dérive les poses
+    #       de la carte (zéro coordonnée victime) et les balaie face-mur.
+    #   La séquence des phases est dans le BT, pas dans ce script (conformité « décision = BT »).
+    echo "[8/8] Mission orchestrée par le Behavior Tree (explore → inspection → done)"
+    _RES="${IA712_RESULTS_DIR:-${REPO_ROOT}/results}"
+    ros2 launch "${EXP_LAUNCH}" \
+        use_sim_time:=true \
+        base_frame:="${NAMESPACE}/base_link" \
+        >"${LOGDIR}/exploration.log" 2>&1 &
+    EXP_PID=$!
+    ros2 run rescue_robot inspection_node --ros-args \
+        -p use_sim_time:=true \
+        -p dwell_sec:=8.0 -p dwell_spin_speed:=0.4 \
+        >"${LOGDIR}/inspection.log" 2>&1 &
+    INSPECT_PID=$!
+    # Attendre que le BT latch /mission_done (il le logge) ; garde-fou temps.
+    MISSION_MAX="${IA712_MISSION_MAX_SECS:-600}"
+    _s=0
+    while [ "${_s}" -lt "${MISSION_MAX}" ]; do
+        if grep -q "mission done published" "${LOGDIR}/bt.log" 2>/dev/null; then
+            echo "[8/8] BT : /mission_done → finalisation"; break
+        fi
+        kill -0 "${BT_PID}" 2>/dev/null || { echo "[8/8] bt_runner arrêté → finalisation"; break; }
+        sleep 5; _s=$(( _s + 5 ))
+    done
+    [ "${_s}" -ge "${MISSION_MAX}" ] && echo "[8/8] temps max mission ${MISSION_MAX}s → finalisation"
+    pkill -9 -f "frontier_explorer" 2>/dev/null || true
+    pkill -9 -f "inspection_node" 2>/dev/null || true
+    kill -9 "${EXP_PID}" "${INSPECT_PID}" 2>/dev/null || true
+    sleep 2
+    WP_PID=""
 else
-    # DÉFAUT (L18, conforme énoncé) : MISSION AUTONOME EN 2 PHASES.
-    #   Phase 1 — exploration par frontières : le node génère ses buts depuis la carte
-    #     SLAM en direct (aucun waypoint pré-enregistré), balaie la caméra (spin-and-scan
-    #     = le « looks around » de CM8 slide 17) → cartographie + 1ères victimes.
-    #   Phase 2 — inspection des pièces découvertes (ci-dessous) : poses dérivées de LA
-    #     CARTE (zéro coordonnée de victime), balayées au spin → capte les tags des pièces
-    #     que l'explo a cartographiées de loin (limite caméra 2 m, cf. parcours §7ter).
-    #   Les deux phases sont 100 % autonomes (entrée = la carte du robot, pas un humain).
-    echo "[8/8] Phase 1/2 : Exploration autonome par frontières (frontier_explorer_node) — mode L18"
+    # REPLI (IA712_BT_MISSION=0, ou BT absent) : MÊME mission 2 phases mais orchestrée
+    # par CE SCRIPT au lieu du BT (utile si rescue_decision n'est pas buildé). Identique
+    # côté robot : exploration par frontières puis inspection des pièces dérivées de la
+    # carte. Le mode L18 par défaut reste la mission orchestrée par le BT (branche ci-dessus).
+    echo "[8/8] Phase 1/2 : Exploration autonome par frontières (repli shell, sans BT)"
     ros2 launch "${EXP_LAUNCH}" \
         use_sim_time:=true \
         base_frame:="${NAMESPACE}/base_link" \

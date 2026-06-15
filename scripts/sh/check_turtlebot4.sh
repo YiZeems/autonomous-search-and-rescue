@@ -6,11 +6,11 @@ source "${SCRIPT_DIR}/_turtlebot4_helper.sh"
 
 source_turtlebot4_overlay_if_configured
 
-echo "=== TurtleBot4 ROS packages ==="
+echo "TurtleBot4 ROS packages"
 ros2 pkg list | grep -E "turtlebot4|irobot_create" | sort || echo "[WARN] No turtlebot4 packages found."
 
 echo ""
-echo "=== Ignition Gazebo ==="
+echo "Ignition Gazebo"
 if dpkg -l libignition-gazebo6 2>/dev/null | grep -q "^ii"; then
   dpkg -l libignition-gazebo6 | awk '/^ii/{print "[OK] libignition-gazebo6 " $3}'
 else
@@ -18,7 +18,7 @@ else
 fi
 
 echo ""
-echo "=== Available TB4 worlds ==="
+echo "Available TB4 worlds"
 worlds_dir="$(ros2 pkg prefix turtlebot4_ignition_bringup 2>/dev/null)/share/turtlebot4_ignition_bringup/worlds"
 if [ -d "${worlds_dir}" ]; then
   find "${worlds_dir}" -name '*.sdf' -printf '  %f\n' | sed 's/\.sdf//'

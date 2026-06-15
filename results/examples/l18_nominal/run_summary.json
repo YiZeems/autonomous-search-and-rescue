@@ -1,12 +1,12 @@
 {
   "strategy": "default",
-  "final_coverage": 0.9754,
+  "final_coverage": 0.9736,
   "victims_detected": 4,
   "success_coverage_90": true,
-  "path_length_m": 50.177,
-  "duration_s": 345.1,
+  "path_length_m": 48.047,
+  "duration_s": 301.8,
   "time_to_50_s": 20.0,
-  "time_to_75_s": 88.0,
+  "time_to_75_s": 90.0,
   "time_to_90_s": 110.0,
   "victim_ids": [
     0,
@@ -17,23 +17,23 @@
   "victim_positions": [
     {
       "id": 0,
-      "x": 4.881,
-      "y": 6.649
+      "x": 4.362,
+      "y": 6.651
     },
     {
       "id": 1,
-      "x": -4.416,
-      "y": -6.535
+      "x": -4.511,
+      "y": -6.617
     },
     {
       "id": 2,
-      "x": -4.651,
-      "y": 6.605
+      "x": -5.144,
+      "y": 6.38
     },
     {
       "id": 3,
-      "x": 4.837,
-      "y": -6.536
+      "x": 5.143,
+      "y": -6.382
     }
   ],
   "success_victims_3": true,

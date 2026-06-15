@@ -30,12 +30,14 @@
 
 ## Équipe (ENSTA / Télécom Paris — IA712)
 
-| Nom            | Email                              | Rôle          |
-| -------------- | ---------------------------------- | ------------- |
-| Julien GIMENEZ | julien.gimenez@telecom-paris.fr    | _à définir_   |
-| Hugo FANCHINI  | hugo.fanchini@telecom-paris.fr     | _à définir_   |
-| Paul CINTRA    | paul.cintra@telecom-paris.fr       | _à définir_   |
-| Yimou ZHANG    | yimou.zhang@telecom-paris.fr       | _à définir_   |
+| Nom            | Email                              |
+| -------------- | ---------------------------------- |
+| Julien GIMENEZ | julien.gimenez@telecom-paris.fr    |
+| Hugo FANCHINI  | hugo.fanchini@telecom-paris.fr     |
+| Paul CINTRA    | paul.cintra@telecom-paris.fr       |
+| Yimou ZHANG    | yimou.zhang@telecom-paris.fr       |
+
+> La répartition des tâches par membre est détaillée dans le rapport de projet (PDF).
 
 ---
 
@@ -76,7 +78,7 @@ Le projet est découpé en **quatre paquets ROS 2** : `rescue_bringup` (launch +
 
 ```mermaid
 flowchart LR
-    subgraph SIM["Ignition Gazebo Fortress — warehouse / depot / maze"]
+    subgraph SIM["Ignition Gazebo Fortress — rescue_arena / warehouse / depot / maze"]
         ROBOT[TurtleBot 4 Standard<br/>Create 3 + RPLIDAR A1M8 + OAK-D-Pro]
         TAGS[(AprilTags 36h11 voxels<br/>victim_0..3)]
     end
@@ -85,39 +87,45 @@ flowchart LR
     ROBOT -- /oakd/rgb/preview/image_raw --> APRIL
     ROBOT -- /oakd/rgb/preview/camera_info --> APRIL
 
-    SLAM["<b>slam_toolbox</b><br/>(async + loop closure)"] -- /map<br/>TF map→odom --> EXPLORE
+    SLAM["<b>slam_toolbox</b><br/>(async + loop closure)"] -- "/map + TF map→odom" --> EXPLORE
     SLAM -- /map --> METRIC
     SLAM -- /map --> NAV2
+    SLAM -- /map --> INSPECT
 
     APRIL["<b>apriltag_ros</b><br/>tag36h11"] -- TF cam→victim_id --> REG
 
-    EXPLORE["<b>frontier_explorer_node</b><br/>frontière + <b>blacklist</b>"] -- NavigateToPose --> NAV2
+    BT["<b>rescue_decision · bt_runner</b> (BT.CPP v3)<br/>WaitForMap → ExplorePhase → InspectPhase → mission_done"]
+    BT -- /mission/explore_enable --> EXPLORE
+    BT -- /mission/inspect_enable --> INSPECT
+    METRIC -- /coverage --> BT
+    INSPECT -- /mission/inspect_done --> BT
+    REG -- nb victimes --> BT
+
+    EXPLORE["<b>frontier_explorer_node</b><br/>Phase 1 — frontière + <b>blacklist</b>"] -- NavigateToPose --> NAV2
+    INSPECT["<b>inspection_node</b><br/>Phase 2 — poses dérivées de /map"] -- NavigateToPose --> NAV2
     REG["<b>victim_registry_node</b><br/>TF2 → map + dédup"] -- /victims_map --> RVIZ
     REG -- results/victims.json --> FS[(disque)]
 
-    BT["<b>rescue_decision</b><br/>bt_runner (BT.CPP v3)"] -- /mission_done --> RVIZ
-    BT -- query --> REG
-    BT -- query --> METRIC
-
     NAV2["<b>Nav2</b><br/>planner + controller + recoveries"] -- /cmd_vel --> ROBOT
 
-    METRIC["<b>coverage_evaluator_node</b>"] -- /coverage --> BT
-    METRIC -- CSV --> FS
+    METRIC["<b>coverage_evaluator_node</b>"] -- CSV --> FS
+    BT -- /mission_done --> RVIZ
 
     RVIZ[RViz2]
     SLAM --> RVIZ
-    EXPLORE --> RVIZ
+    EXPLORE -- /exploration/frontiers --> RVIZ
+    INSPECT -- /inspection/poses --> RVIZ
 ```
 
-### Flux clés
+### Flux clés (mission 2 phases orchestrée par le BT)
 
 1. **SLAM en continu** publie `/map` et la TF `map → odom`.
-2. **`frontier_explorer_node`** lit `/map`, choisit la meilleure frontière et l'envoie à Nav2 via `nav2_msgs/action/NavigateToPose`. Les frontières inatteignables sont **blacklistées** (voir ci-dessous) pour que le robot ne tourne jamais en boucle sur une frontière morte.
-3. **`apriltag_ros`** publie une TF `caméra → victim_<id>` pour chaque tag visible.
-4. **`victim_registry_node`** projette chaque détection du repère caméra vers `map` via TF2, déduplique par ID de tag, et persiste `results/victims.json`.
-5. **`coverage_evaluator_node`** publie `/coverage` à partir de la grille d'occupation.
-6. **`bt_runner`** (BehaviorTree.CPP v3) supervise la mission : il attend `/map`, vérifie `/coverage ≥ 0.90`, expose le nombre de victimes en temps réel et verrouille `/mission_done`.
-7. **Critère d'arrêt :** couverture ≥ 90 % (en run, ~90 % de couverture atteint) **OU** plus de frontière atteignable.
+2. **`bt_runner`** (BehaviorTree.CPP v3) **orchestre** la mission via une `Sequence` : `WaitForMap → ExplorePhase → InspectPhase → VictimsFound → PublishMissionDone` (la `Sequence` à mémoire résume au nœud RUNNING → vraie séquence de phases, pas une FSM faite main).
+3. **Phase 1 — `ExplorePhase`** active `frontier_explorer_node` via `/mission/explore_enable` ; il lit `/map`, choisit la meilleure frontière et l'envoie à Nav2 (`NavigateToPose`). Les frontières inatteignables sont **blacklistées** pour ne jamais boucler sur une frontière morte. RUNNING jusqu'à `/coverage ≥ 0.90`.
+4. **Phase 2 — `InspectPhase`** active `inspection_node` via `/mission/inspect_enable` ; il lit la `/map` que le robot vient de construire, **dérive une pose d'inspection par pièce découverte** (face au mur le plus proche, cellule navigable, sans coordonnée de victime), conduit Nav2 vers chacune et balaie la caméra → capte les tags muraux que l'exploration ne peut atteindre. RUNNING jusqu'à `/mission/inspect_done`.
+5. **`apriltag_ros`** publie une TF `caméra → victim_<id>` par tag visible ; **`victim_registry_node`** la projette vers `map` via TF2, déduplique par ID et persiste `results/victims.json`.
+6. **`coverage_evaluator_node`** publie `/coverage` (le seuil de l'ExplorePhase) et logge les métriques CSV.
+7. **Critère d'arrêt :** la `Sequence` du BT se termine — exploration ≥ 90 % **puis** toutes les pièces découvertes inspectées → `/mission_done` verrouillé. Résultat : **4/4 victimes + ~97 % de couverture**, 100 % autonome, un clic.
 
 ---
 
@@ -252,6 +260,10 @@ sudo apt update && sudo apt install -y \
   ignition-fortress \
   python3-opencv \
   python3-numpy \
+  python3-matplotlib \
+  python3-pil \
+  ffmpeg \
+  xvfb \
   python3-colcon-common-extensions
 ```
 
@@ -263,6 +275,14 @@ sudo apt update && sudo apt install -y \
 > `python3-opencv` + `python3-numpy` sont requis par
 > [`scripts/generate_apriltag_models.py`](scripts/generate_apriltag_models.py) pour générer
 > les modèles AprilTag voxel.
+
+> **Figures & vidéo du rapport** — `python3-matplotlib` + `python3-pil` (Pillow) pour
+> [`scripts/make_report_figures.py`](scripts/make_report_figures.py),
+> [`scripts/make_mission_video.py`](scripts/make_mission_video.py) et
+> [`scripts/annotate_map.py`](scripts/annotate_map.py) ; **`ffmpeg`** encode la vidéo replay.
+> **`xvfb`** sert uniquement à enregistrer la sortie RViz live en vidéo sur une machine
+> headless / WSLg (serveur X virtuel + `ffmpeg -f x11grab`), la capture Wayland
+> (`grim`/`wf-recorder`) n'étant pas supportée sous WSLg. Aucun n'est requis pour la mission.
 
 > Un installeur pratique est aussi fourni : `./scripts/run.sh install-apt`.
 
@@ -407,7 +427,7 @@ GPU/CPU par seconde réelle, **temps simulé inchangé**), **RTF à chaud** via 
 
 **Pivot conformité — exploration 100 % autonome (le tournant décisif).** La patrouille de waypoints qui fiabilisait les 4 victimes conduisait le robot **pile devant la pose connue de chaque tag** (ex. `(4.6, 4.6)` = position de `victim_0`). Or l'énoncé impose de découvrir un environnement **inconnu**, **sans intervention humaine** — encoder les **coordonnées connues des victimes** dans la trajectoire, c'est *connaître la réponse*, pas de la recherche autonome. On **supprime donc toute la patrouille vers les victimes** : le run un-clic par défaut est désormais l'**exploration par frontières seule**, et les victimes sont captées par le **spin-and-scan 360°** que l'explorateur fait déjà à chaque goal (CM8 slide 17 : *« le robot s'arrête, regarde autour, met à jour sa carte SLAM »*) — la caméra balaie tous les murs **sans savoir où sont les tags**. Leviers : l'explorateur **s'arrête seul** (couverture cible ou plus de frontières) → carte sauvée automatiquement ; **seuil couverture 0,90→0,95** pour vider les 4 pièces d'angle (→ les 4 victimes découvrables) ; **caméra `always_on`** en continu (le fix lidar-10 Hz contient la fuite, donc plus besoin de la coupure-pendant-l'explore, fragile). Le fichier de waypoints poses-victimes de l'arène est **supprimé** ; les modes patrouille/hybride restent en option comme routes de couverture **génériques** (zéro coordonnée de victime). *Robuste > rigide, et désormais prouvablement conforme.*
 
-**Mission autonome en 2 phases (comment on atteint 4/4, toujours conforme).** L'exploration pure plafonne à ~2 victimes : le LIDAR 12 m cartographie les pièces d'angle depuis leurs portes, donc le robot ne s'approche jamais à <~2 m (portée caméra) des tags muraux (frontier-complétude ≠ couverture-caméra). Le correctif est une **2ᵉ phase autonome** : après l'exploration, `generate_inspection_waypoints.py` lit **la carte que le robot vient de construire** et en dérive **une pose d'inspection par pièce découverte** — orientée face au mur le plus proche, snappée sur cellule libre navigable, ordonnée en boucle de périmètre — **sans aucune coordonnée de victime ni parcours écrit à la main**. Le robot les visite et balaie la caméra → capte chaque tag mural. Le waypoint-follower n'est que l'exécuteur Nav2 d'une tournée que le robot a **planifiée depuis sa propre carte** → autonome, pas de la téléopération. Run nominal final : **4/4 victimes + 97,5 % de couverture + carte propre + carte annotée** (`results/examples/l18_nominal/`). La saga complète (dérive SLAM rotationnelle, snap de pose navigable, demi-tour face-mur) est dans [`docs/parcours.md`](docs/parcours.md) §7bis–§7quater.
+**Mission autonome en 2 phases (comment on atteint 4/4, toujours conforme).** L'exploration pure plafonne à ~2 victimes : le LIDAR 12 m cartographie les pièces d'angle depuis leurs portes, donc le robot ne s'approche jamais à <~2 m (portée caméra) des tags muraux (frontier-complétude ≠ couverture-caméra). Le correctif est une **2ᵉ phase autonome** : après l'exploration, `generate_inspection_waypoints.py` lit **la carte que le robot vient de construire** et en dérive **une pose d'inspection par pièce découverte** — orientée face au mur le plus proche, snappée sur cellule libre navigable, ordonnée en boucle de périmètre — **sans aucune coordonnée de victime ni parcours écrit à la main**. Le robot les visite et balaie la caméra → capte chaque tag mural. **C'est le Behavior Tree qui orchestre** toute la mission (énoncé : décision par BT, pas FSM) : une `Sequence` `WaitForMap → ExplorePhase → InspectPhase → VictimsFound → mission_done`, où les nœuds d'action BT (C++) démarrent/arrêtent chaque phase via les topics `/mission/*` et les nœuds Python (`frontier_explorer_node`, `inspection_node`) font le travail. Run nominal final (orchestré par le BT) : **4/4 victimes + 97 % de couverture + carte propre + carte annotée + trajectoire loggée** (`results/examples/l18_nominal/`, figures dans `docs/report/figures/`). La saga complète (dérive SLAM, snap de pose navigable, demi-tour face-mur, orchestration BT) est dans [`docs/parcours.md`](docs/parcours.md) §7bis–§7quinquies.
 
 **Algorithmes à comparer pour améliorer le *chemin réellement emprunté* (CM9/CM10)** — voir
 [`docs/parcours.md`](docs/parcours.md) §9. Le chemin réel = global planner + controller :

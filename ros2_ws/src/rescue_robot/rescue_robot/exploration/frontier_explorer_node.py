@@ -27,10 +27,13 @@ from action_msgs.msg import GoalStatus
 from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.time import Time
-from geometry_msgs.msg import PoseStamped, Twist
+from geometry_msgs.msg import Point, PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import ComputePathToPose, NavigateToPose
+from std_msgs.msg import Bool
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from tf2_ros import Buffer, TransformListener
+from visualization_msgs.msg import Marker, MarkerArray
 
 from rescue_robot.exploration import frontier_search as fs
 from rescue_robot.utils.node_runner import run_node
@@ -107,8 +110,19 @@ class FrontierExplorerNode(Node):
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._path_client = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
+        # Visualise the algorithm in RViz (TP08 style): detected frontiers + the
+        # selected goal as a MarkerArray on /exploration/frontiers.
+        self._frontier_pub = self.create_publisher(MarkerArray, "/exploration/frontiers", 10)
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
+
+        # Activation gate: when the BT orchestrates the mission it raises/clears
+        # /mission/explore_enable to start/stop this phase. Default ENABLED so the
+        # plain (non-BT) explore mode still runs without anyone driving the gate.
+        self._enabled = True
+        _latched = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.RELIABLE,
+                              durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        self.create_subscription(Bool, "/mission/explore_enable", self._on_enable, _latched)
 
         period = float(self.get_parameter("replan_period_sec").value)
         self.timer = self.create_timer(period, self._tick)
@@ -120,6 +134,43 @@ class FrontierExplorerNode(Node):
 
     def _map_cb(self, msg: OccupancyGrid) -> None:
         self._map = msg
+
+    def _on_enable(self, msg: Bool) -> None:
+        if self._enabled and not msg.data:
+            self.get_logger().info("Exploration disabled by BT — stopping (inspection phase next).")
+            self._cmd_pub.publish(Twist())
+        self._enabled = bool(msg.data)
+
+    def _publish_frontier_markers(self, reachable, goal, info) -> None:
+        """RViz visualisation of the exploration algorithm (TP08 style): every detected
+        frontier as a green sphere + the SELECTED next goal as a bigger yellow sphere."""
+        res, ox, oy = info.resolution, info.origin.position.x, info.origin.position.y
+        arr = MarkerArray()
+        m = Marker()
+        m.header.frame_id = "map"
+        m.header.stamp = self.get_clock().now().to_msg()
+        m.ns = "frontiers"; m.id = 0; m.type = Marker.SPHERE_LIST; m.action = Marker.ADD
+        m.scale.x = m.scale.y = m.scale.z = 0.18
+        m.color.r, m.color.g, m.color.b, m.color.a = 0.18, 0.65, 0.18, 0.9
+        m.pose.orientation.w = 1.0
+        for c in reachable:
+            wx, wy = fs.cell_to_world(c[0], c[1], res, ox, oy)
+            m.points.append(Point(x=float(wx), y=float(wy), z=0.05))
+        arr.markers.append(m)
+        g = Marker()
+        g.header = m.header
+        g.ns = "frontier_goal"; g.id = 1; g.type = Marker.SPHERE
+        g.scale.x = g.scale.y = g.scale.z = 0.45
+        g.color.r, g.color.g, g.color.b, g.color.a = 1.0, 0.85, 0.0, 1.0
+        g.pose.orientation.w = 1.0
+        if goal is not None:
+            wx, wy = fs.cell_to_world(goal[0], goal[1], res, ox, oy)
+            g.action = Marker.ADD
+            g.pose.position.x = float(wx); g.pose.position.y = float(wy); g.pose.position.z = 0.05
+        else:
+            g.action = Marker.DELETE
+        arr.markers.append(g)
+        self._frontier_pub.publish(arr)
 
     def _coverage(self, data) -> float:
         total = len(data)
@@ -141,6 +192,8 @@ class FrontierExplorerNode(Node):
             return info.width / 2.0, info.height / 2.0
 
     def _tick(self) -> None:
+        if not self._enabled:
+            return  # BT has paused/ended the exploration phase
         if self._done or self._navigating or self._map is None:
             return
         msg = self._map
@@ -165,6 +218,7 @@ class FrontierExplorerNode(Node):
             radius_cells=radius_cells, lam=self._ig_lambda, min_size=self._min_size,
             min_gain=self._ig_min_gain,
         )
+        self._publish_frontier_markers(reachable, goal, info)
 
         if goal is None:
             # Every frontier is either too small or blacklisted. Frontiers may

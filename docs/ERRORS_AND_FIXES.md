@@ -746,7 +746,7 @@ nav2 = IncludeLaunchDescription(
 Idem pour `turtlebot4_navigation/launch/nav2.launch.py` qui ré-inclut le launch
 nav2_bringup en interne — passer `params_file` au turtlebot4 wrapper.
 
-**Note historique.** `navigation_tb4.launch.py` de Yimou contournait déjà ce
+**Note historique.** `navigation_tb4.launch.py` (version historique) contournait déjà ce
 problème via son helper `_resolve_config()` qui passe `nav2_params_file:`
 explicite à l'include. Notre fix applique la même logique aux deux nouveaux
 bringups (TB3 et TB4 simple) pour qu'ils soient autonomes.

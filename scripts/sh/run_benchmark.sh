@@ -73,7 +73,7 @@ if [ "${FRESH}" = "1" ]; then
   rm -rf "${EXP_DIR}"
 fi
 
-echo "=== L17 benchmark: algos=[${ALGOS}] runs=${RUNS} duration=${DURATION}s cooldown=${COOLDOWN}s → ${EXP_DIR}/ (resumable) ==="
+echo "L17 benchmark: algos=[${ALGOS}] runs=${RUNS} duration=${DURATION}s cooldown=${COOLDOWN}s → ${EXP_DIR}/ (resumable)"
 for algo in ${ALGOS}; do
   for run in $(seq 1 "${RUNS}"); do
     outdir="${EXP_DIR}/${algo}_run${run}"
@@ -113,7 +113,7 @@ done
 
 # Campaign recap: how many valid runs per algo (so a reboot-truncated campaign is
 # obvious instead of silently averaging too few runs).
-echo "=== bilan campagne ==="
+echo "bilan campagne"
 for algo in ${ALGOS}; do
   ok=0; tot=0
   for run in $(seq 1 "${RUNS}"); do
@@ -121,5 +121,5 @@ for algo in ${ALGOS}; do
   done
   echo "  ${algo}: ${ok}/${tot} runs valides"
 done
-echo "=== terminé. Si tous valides → python3 scripts/plot_benchmark.py ${EXP_DIR} ==="
-echo "=== sinon relance la MÊME commande : les runs valides seront sautés (resume). ==="
+echo "terminé. Si tous valides → python3 scripts/plot_benchmark.py ${EXP_DIR}"
+echo "sinon relance la MÊME commande : les runs valides seront sautés (resume)."

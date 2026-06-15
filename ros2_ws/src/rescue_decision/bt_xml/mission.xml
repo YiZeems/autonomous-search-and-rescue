@@ -1,29 +1,30 @@
 <!--
   Search & Rescue mission tree (BehaviorTree.CPP v3, loadable in Groot).
 
-  Structure: a ReactiveSequence ticked once per runner cycle (bt_runner spins
-  the executor between ticks, so /map and /coverage stay fresh). ReactiveSequence
-  re-evaluates ALL children every tick from the start — the correct shape for
-  polling async conditions. Do NOT wrap conditions in RetryUntilSuccessful: in
-  BT.CPP v3 a Retry decorator with num_attempts=-1 busy-loops inside a single
-  tick when its synchronous child returns FAILURE, starving the ROS executor so
-  no message is ever received.
+  The BT ORCHESTRATES the mission (assignment: "decision-making with Behavior Trees,
+  not FSMs"). A plain Sequence (with memory: it resumes at the RUNNING child and only
+  advances on SUCCESS) runs the phases in order:
 
-  Flow each tick:
-    1. WaitForMap        -> FAILURE until SLAM publishes /map  (whole seq fails, retried next tick)
-    2. CoverageReached   -> FAILURE until /coverage >= 0.90    (idem)
-    3. ReportVictims      -> always SUCCESS (surfaces the live victim count in Groot)
-    4. PublishMissionDone -> latches /mission_done = true, returns SUCCESS
-  When all four return SUCCESS the ReactiveSequence returns SUCCESS and the
-  runner stops ticking and idles (keeping /mission_done latched).
+    1. WaitForMap     -> FAILURE until SLAM publishes /map (sequence retries next tick)
+    2. ExplorePhase   -> raises /mission/explore_enable; RUNNING until coverage >= threshold,
+                         then clears it (stops the explorer) and returns SUCCESS
+    3. InspectPhase   -> raises /mission/inspect_enable (the inspection_node visits the
+                         map-derived per-room poses); RUNNING until /mission/inspect_done
+    4. VictimsFound    -> surfaces the live victim count (min_count=0 → never blocks)
+    5. PublishMissionDone -> latches /mission_done = true
+
+  The robot's actions run in the Python nodes (frontier_explorer_node, inspection_node);
+  the BT decides WHEN each phase starts and stops via the /mission/* topics. After the
+  Sequence returns SUCCESS the runner idles, keeping /mission_done latched.
 -->
 <root main_tree_to_execute="Mission">
   <BehaviorTree ID="Mission">
-    <ReactiveSequence name="search_and_rescue_mission">
+    <Sequence name="search_and_rescue_mission">
       <WaitForMap name="wait_for_slam_map"/>
-      <CoverageReached name="coverage_90" threshold="0.90"/>
+      <ExplorePhase name="explore_until_coverage" threshold="0.90"/>
+      <InspectPhase name="inspect_discovered_rooms"/>
       <VictimsFound name="report_victims" min_count="0"/>
       <PublishMissionDone name="finalize"/>
-    </ReactiveSequence>
+    </Sequence>
   </BehaviorTree>
 </root>

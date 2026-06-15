@@ -1,14 +1,15 @@
 # ROS 2 Package Structure Explained
 
-> **Current layout (3 packages).** The project is split into three ROS 2
+> **Current layout (4 packages).** The project is split into four ROS 2
 > packages under `ros2_ws/src/`:
 >
-> - **`rescue_robot`** (`ament_python`) — all nodes, configs, launch files, RViz config.
-> - **`rescue_bringup`** (`ament_cmake`) — integration entry points (`bringup.launch.py`, `demo.launch.py`).
+> - **`rescue_robot`** (`ament_python`) — all Python nodes, configs, launch files, RViz config.
+> - **`rescue_bringup`** (`ament_cmake`) — integration entry points (`bringup_tb4.launch.py`, `bringup.launch.py`, `demo.launch.py`, `exploration.launch.py`).
 > - **`rescue_world`** (`ament_cmake`) — Gazebo worlds/models.
+> - **`rescue_decision`** (`ament_cmake`) — the mission Behavior Tree in C++ (BehaviorTree.CPP v3): `src/bt_runner.cpp`, `bt_xml/mission.xml`, `launch/bt_mission.launch.py`.
 >
-> The single launch file that lives in `rescue_bringup` (not `rescue_robot`) is
-> `bringup.launch.py`: run it with `ros2 launch rescue_bringup bringup.launch.py`.
+> The one-click entry point lives in `rescue_bringup` (not `rescue_robot`):
+> run it with `ros2 launch rescue_bringup bringup_tb4.launch.py`.
 
 This file explains the repository tree and, especially, why the path below contains the same name twice:
 
@@ -70,7 +71,9 @@ ros2_ws/src/rescue_robot/rescue_robot/
 ├── detection/
 ├── exploration/
 ├── mocks/
-└── results/
+├── navigation/
+├── results/
+└── utils/
 ```
 
 This level answers:
@@ -130,20 +133,26 @@ ros2_ws/src/rescue_robot/launch/
 Contains ROS 2 launch files.
 
 ```text
-bringup.launch.py       final one-command entrypoint
 mock_system.launch.py   mock development system
 simulation.launch.py    Gazebo simulation layer
 navigation.launch.py    SLAM/Nav2 layer
+navigation_tb4.launch.py SLAM/Nav2 layer (TurtleBot 4)
 exploration.launch.py   exploration module
 detection.launch.py     victim detection module
+victim_registry.launch.py victim registry module
+waypoint.launch.py      waypoint following module
 results.launch.py       metrics/export/visualization module
-bt.launch.py            Behavior Tree supervisor
+bt.launch.py            LEGACY Python BT supervisor scaffold
 ```
+
+The one-click entry point is not in this folder: it lives in the
+`rescue_bringup` package (`bringup_tb4.launch.py`, `bringup.launch.py`,
+`demo.launch.py`, `exploration.launch.py`).
 
 The final target is still one command:
 
 ```bash
-ros2 launch rescue_bringup bringup.launch.py
+ros2 launch rescue_bringup bringup_tb4.launch.py
 ```
 
 The other launch files exist so that each module can be tested independently.
@@ -259,6 +268,45 @@ Final goal:
 camera image -> marker detection -> camera frame pose -> tf2 -> map frame pose -> /victims_map
 ```
 
+Examples:
+
+```text
+victim_detector_node.py     camera-based victim detection
+victim_registry_node.py     deduplicated victim map registry
+```
+
+### `navigation/`
+
+```text
+ros2_ws/src/rescue_robot/rescue_robot/navigation/
+```
+
+Contains inspection and waypoint-following navigation logic on top of Nav2.
+
+Examples:
+
+```text
+inspection_node.py          drives inspection waypoints
+inspection_planner.py       plans inspection waypoints
+waypoint_follower_node.py   follows a waypoint sequence
+```
+
+### `utils/`
+
+```text
+ros2_ws/src/rescue_robot/rescue_robot/utils/
+```
+
+Contains small relay/throttle helper nodes and shared runner utilities.
+
+Examples:
+
+```text
+cmd_vel_relay_node.py       relays /cmd_vel
+tf_relay_node.py            relays TF
+scan_throttle_node.py       throttles /scan
+```
+
 ### `results/`
 
 ```text
@@ -281,7 +329,12 @@ rviz_marker_node.py
 ros2_ws/src/rescue_robot/rescue_robot/bt/
 ```
 
-Contains the project-level Behavior Tree supervisor node.
+Contains `bt_supervisor_node.py`, a **LEGACY** Python Behavior Tree supervisor
+scaffold. This is a reliquat and is **not** the mission Behavior Tree.
+
+The real mission Behavior Tree is the separate `rescue_decision` package
+(C++, BehaviorTree.CPP v3): `src/bt_runner.cpp`, `bt_xml/mission.xml`,
+launched via `ros2 launch rescue_decision bt_mission.launch.py`.
 
 ---
 

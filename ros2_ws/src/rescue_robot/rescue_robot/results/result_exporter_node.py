@@ -4,10 +4,12 @@ import math
 import os
 from pathlib import Path
 
+import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseArray
 from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32
+from tf2_ros import Buffer, TransformListener
 
 from rescue_robot.utils.node_runner import run_node
 
@@ -33,11 +35,18 @@ class ResultExporterNode(Node):
         super().__init__('result_exporter_node')
         self.declare_parameter('output_dir', 'results')
         self.declare_parameter('odom_topic', '/turtlebot4/odom')
+        # Frames for the MAP-frame robot pose (the trajectory plotted on the map must be
+        # in 'map', not 'odom' — odom drifts vs map as SLAM corrects, which made the path
+        # look like it crossed walls). base_frame is namespaced on the TB4.
+        self.declare_parameter('map_frame', 'map')
+        self.declare_parameter('base_frame', 'turtlebot4/base_link')
         out = os.environ.get('IA712_RESULTS_DIR', str(self.get_parameter('output_dir').value))
         self.results_dir = Path(out)
         self.results_dir.mkdir(parents=True, exist_ok=True)
         self.coverage_path = self.results_dir / 'coverage_over_time.csv'
         self.victims_path = self.results_dir / 'victims_detected.csv'
+        self.victims_timeline_path = self.results_dir / 'victims_over_time.csv'
+        self.trajectory_path = self.results_dir / 'trajectory.csv'   # dense 2 Hz map-frame path
         self.summary_path = self.results_dir / 'run_summary.json'
 
         self.strategy = os.environ.get('IA712_EXPLORE_STRATEGY', 'default')
@@ -47,6 +56,12 @@ class ResultExporterNode(Node):
         self._last_xy = None
         self._t0 = None                       # sim time of first coverage sample
         self._time_to = {0.5: None, 0.75: None, 0.90: None}
+        self._victim_count = 0
+
+        self.map_frame = str(self.get_parameter('map_frame').value)
+        self.base_frame = str(self.get_parameter('base_frame').value)
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
 
         self._ensure_headers()
         self.create_subscription(Float32, '/coverage', self.coverage_callback, 10)
@@ -55,6 +70,7 @@ class ResultExporterNode(Node):
             Odometry, str(self.get_parameter('odom_topic').value), self.odom_callback, 10
         )
         self.timer = self.create_timer(5.0, self.export_summary)
+        self.create_timer(0.5, self._log_trajectory)   # dense, smooth map-frame trajectory
         self.get_logger().info(
             f"Result exporter started (strategy={self.strategy}). Writing to {self.results_dir}/."
         )
@@ -65,14 +81,44 @@ class ResultExporterNode(Node):
         return self.get_clock().now().nanoseconds / 1e9
 
     def _ensure_headers(self):
-        if not self.coverage_path.exists() or self.coverage_path.stat().st_size == 0:
-            with self.coverage_path.open('w', newline='') as f:
-                csv.writer(f).writerow(['time', 'coverage', 'path_length_m'])
+        # These are PER-RUN time-series logs (one node instance = one mission), appended
+        # to as the run progresses. They MUST start fresh each run: truncate + write the
+        # header unconditionally. Otherwise a leftover CSV from a previous run keeps its
+        # rows and the new run appends to them → the report figures show several runs'
+        # curves/trajectories superimposed (the "courbes qui se cumulent" bug).
+        # robot_x/robot_y are logged so the figures can draw the real path taken.
+        for path, hdr in (
+            (self.coverage_path, ['time', 'coverage', 'path_length_m', 'robot_x', 'robot_y']),
+            # victims_over_time.csv: (sim time, cumulative count) → the replay reveals each
+            # victim at the moment it was actually detected, not a guessed threshold.
+            (self.victims_timeline_path, ['time', 'count']),
+            (self.trajectory_path, ['time', 'x', 'y']),          # dense 2 Hz map-frame path
+        ):
+            with path.open('w', newline='') as f:
+                csv.writer(f).writerow(hdr)
+        # victims.json's CSV twin is a final snapshot (rewritten wholesale on each update),
+        # so it only needs a header when missing/empty — no per-run truncation required.
         if not self.victims_path.exists() or self.victims_path.stat().st_size == 0:
             with self.victims_path.open('w', newline='') as f:
                 csv.writer(f).writerow(['id', 'x', 'y'])
 
     # -- callbacks --------------------------------------------------------------
+
+    def _log_trajectory(self):
+        mxy = self._map_xy()
+        if mxy is None or self._t0 is None:
+            return
+        t = self._now() - self._t0
+        with self.trajectory_path.open('a', newline='') as f:
+            csv.writer(f).writerow([round(t, 2), round(mxy[0], 3), round(mxy[1], 3)])
+
+    def _map_xy(self):
+        """Robot (x, y) in the MAP frame via TF (map → base). None if TF not ready yet."""
+        try:
+            tf = self._tf_buffer.lookup_transform(self.map_frame, self.base_frame, rclpy.time.Time())
+            return tf.transform.translation.x, tf.transform.translation.y
+        except Exception:
+            return None
 
     def odom_callback(self, msg: Odometry):
         x = msg.pose.pose.position.x
@@ -90,9 +136,14 @@ class ResultExporterNode(Node):
         for thr in self._time_to:
             if self._time_to[thr] is None and self.coverage >= thr:
                 self._time_to[thr] = round(elapsed, 1)
+        # MAP-frame pose for the plotted trajectory (fall back to odom if TF not ready).
+        mxy = self._map_xy()
+        rx, ry = mxy if mxy is not None else (self._last_xy if self._last_xy is not None else ('', ''))
         with self.coverage_path.open('a', newline='') as f:
             csv.writer(f).writerow([round(elapsed, 2), round(self.coverage, 4),
-                                    round(self.path_length, 3)])
+                                    round(self.path_length, 3),
+                                    round(rx, 3) if rx != '' else '',
+                                    round(ry, 3) if ry != '' else ''])
 
     def victims_callback(self, msg: PoseArray):
         self.victims = [(p.position.x, p.position.y) for p in msg.poses]
@@ -101,6 +152,12 @@ class ResultExporterNode(Node):
             writer.writerow(['id', 'x', 'y'])
             for i, (x, y) in enumerate(self.victims, start=1):
                 writer.writerow([f'victim_{i}', x, y])
+        # Record the detection moment when the count grows (for the replay video).
+        if len(self.victims) > self._victim_count:
+            self._victim_count = len(self.victims)
+            t = (self._now() - self._t0) if self._t0 is not None else 0.0
+            with self.victims_timeline_path.open('a', newline='') as f:
+                csv.writer(f).writerow([round(t, 2), self._victim_count])
 
     # -- summary ----------------------------------------------------------------
 
