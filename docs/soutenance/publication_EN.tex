@@ -49,7 +49,7 @@
 \begin{document}
 \sloppy
 
-% =================== TITLE BLOCK ===================
+% TITLE BLOCK
 \twocolumn[
 \begin{@twocolumnfalse}
 \begin{center}
@@ -81,7 +81,7 @@ evaluation.}}
 \end{@twocolumnfalse}
 ]
 
-% =================== 1. INTRODUCTION ===================
+% 1. INTRODUCTION
 \section{Introduction}
 Search-and-rescue robotics aims to send autonomous machines into disaster zones that humans cannot
 safely enter. The IA712 ``Project~B'' scenario~[1] formalises this as a concrete robotics problem: a
@@ -103,7 +103,7 @@ are \emph{distinct} objectives: a robot can map a room perfectly from its doorwa
 short-range camera close enough to the wall tag. We therefore split the mission into two autonomous
 phases coordinated by a Behavior Tree, which is the contribution we evaluate below.
 
-% =================== 2. SYSTEM ===================
+% 2. SYSTEM
 \section{System and Method}
 \head{Architecture.} The workspace is split into four ROS\,2 packages so the team can work in parallel:
 \texttt{rescue\_bringup} (one-click launch and Nav2/SLAM/AprilTag configs), \texttt{rescue\_robot} (a
@@ -199,7 +199,7 @@ visibly threads the doorways.}
 \label{fig:bt}
 \end{figure}
 
-% =================== 3. RESULTS ===================
+% 3. RESULTS
 \section{Results}
 The final autonomous run (archived as \texttt{results/examples/l18\_nominal}) reaches \textbf{97.35\,\%
 coverage} of the building - well above the 90\,\% target - and detects \textbf{4/4 victims} in a
@@ -242,7 +242,7 @@ inflation radius), and a collapsed real-time factor \emph{starved the camera ren
 brought 4/4 and 97\,\% in one run; we kept a real-time factor of 0.7, as a faster setting cost a victim
 and stressed the GPU.
 
-% =================== 4. CONCLUSION ===================
+% 4. CONCLUSION
 \section{Conclusion}
 We built a complete, assignment-conformant autonomous search-and-rescue stack around a single
 TurtleBot~4: SLAM-based mapping, frontier exploration with an information-gain criterion, TF2 projection
@@ -258,7 +258,7 @@ patrol). Future work includes RRT-based exploration and a learned victim detecto
 We warmly thank \textbf{Zhi Yan}, Teacher-Researcher at ENSTA, for the IA712 course and the guidance that
 made this project possible.
 
-% =================== REFERENCES ===================
+% REFERENCES
 \begingroup
 \scriptsize
 \begin{thebibliography}{9}

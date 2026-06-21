@@ -23,7 +23,7 @@ class ResultExporterNode(Node):
     - <odom_topic>   (nav_msgs/Odometry) — integrated into total path length
 
     Outputs (under ``output_dir``, env IA712_RESULTS_DIR overrides the param so the
-    L17 benchmark can point each run at experiments/<algo>_run<n>/):
+    the benchmark can point each run at experiments/<algo>_run<n>/):
     - coverage_over_time.csv : time, coverage, path_length_m
     - victims_detected.csv   : id, x, y
     - run_summary.json       : final_coverage, victims_detected, success_coverage_90,

@@ -153,7 +153,7 @@ def choose_frontier(
     return best
 
 
-# ── L17 bonus: two comparable exploration strategies ─────────────────────────
+# ── Two comparable exploration strategies ─────────────────────────
 # The assignment bonus asks for a quantitative comparison of "greedy frontier"
 # vs "information-gain" exploration (coverage over time). Both reuse the frontier
 # detection/clustering above; only the GOAL-SELECTION rule differs:
@@ -195,8 +195,7 @@ def nearest_free_cell(
 
     A frontier centroid often sits ON the explored/unknown boundary, so sending
     it raw makes Nav2 reject the goal (it lands in unknown/occupied space). We
-    snap the goal to the closest free cell instead (cf. codex §5 "déplacer le goal
-    vers une cellule libre adjacente à la frontière").
+    snap the goal to the closest free cell instead.
     """
     if width <= 0 or height <= 0:
         return None

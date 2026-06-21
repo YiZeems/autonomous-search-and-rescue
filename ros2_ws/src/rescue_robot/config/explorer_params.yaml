@@ -19,7 +19,7 @@ frontier_explorer_node:
     # FAKE frontiers in the drifted area, chase them, and drift more — map ruined
     # (coverage fell to 88 %, a victim mislocalised). 0.92 stops before that.
     coverage_stop_threshold: 0.92
-    # ── Frontier blacklisting (cf. CM8 "Inaccessible Frontiers") ──
+    # ── Frontier blacklisting ──
     # World-metre bucket size used to key blacklisted frontiers (stable as the
     # map grows). Goals within this distance count as "the same" frontier.
     blacklist_quantum_m: 0.5
@@ -31,7 +31,7 @@ frontier_explorer_node:
     # How many times to clear the whole blacklist (frontiers may become reachable
     # as the map grows) before declaring exploration finished.
     max_blacklist_clears: 3
-    # ── L17 bonus: goal-selection strategy (cf. CM8 utility heuristics) ──
+    # ── Goal-selection strategy ──
     # greedy = H1 proximity (−cost) ; info_gain = H3 gain−λ·cost ; size_dist = H3.
     # The benchmark overrides this per run via the IA712_EXPLORE_STRATEGY env var.
     strategy: info_gain
@@ -39,7 +39,7 @@ frontier_explorer_node:
     info_gain_lambda: 1.0
     info_gain_radius_m: 1.5
     # Skip frontiers revealing fewer than this many unknown cells (0 = off);
-    # a TP08-style guard against re-picking low-yield frontiers (oscillation).
+    # a guard against re-picking low-yield frontiers (oscillation).
     info_gain_min_gain: 0
     # After each reached goal, rotate in place to sweep the camera over the walls
     # so wall-mounted AprilTag victims are seen during normal exploration.

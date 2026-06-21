@@ -1,4 +1,4 @@
-// Mission-level Behavior Tree runner — BehaviorTree.CPP v3 (assignment-compliant).
+// Mission-level BehaviorTree.CPP runner.
 //
 // Loads bt_xml/mission.xml and ticks it at `tick_rate_hz` until the tree
 // returns SUCCESS. Custom leaf nodes are wired to the project topics:

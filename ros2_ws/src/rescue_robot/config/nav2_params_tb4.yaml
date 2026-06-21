@@ -63,7 +63,7 @@ controller_server:
     general_goal_checker:
       stateful: true
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.35   # L18: reach victim-facing waypoints (~1.3 m from walls) reliably
+      xy_goal_tolerance: 0.35   # reach inspection poses (~1.3 m from walls) reliably
       yaw_goal_tolerance: 0.35   # ±20° — enough for the OAK-D to face the tag, avoids endless final spin
 
     FollowPath:
@@ -90,7 +90,7 @@ controller_server:
       linear_granularity: 0.05
       angular_granularity: 0.025
       transform_tolerance: 0.2
-      xy_goal_tolerance: 0.35   # L18: match the goal checker so DWB stops at the waypoint cleanly
+      xy_goal_tolerance: 0.35   # match the goal checker so DWB stops at the goal cleanly
       trans_stopped_velocity: 0.25
       short_circuit_trajectory_evaluation: true
       stateful: true
@@ -112,7 +112,7 @@ planner_server:
     use_sim_time: true
     planner_plugins: ["GridBased"]
     GridBased:
-      # L18 — planner ACTIF = NavFn/Dijkstra. Choisi après comparaison : SmacPlanner2D
+      # Active planner = NavFn/Dijkstra. Chosen over SmacPlanner2D
       # (A*) refuse de planifier quand le robot est en zone inflatée près d'un mur
       # (« Starting point in lethal space! ») → robot figé à 60% dans cette arène
       # cloisonnée. NavFn est plus tolérant (planifie depuis l'inflation) → 88-96%.
@@ -121,7 +121,7 @@ planner_server:
       tolerance: 0.5
       use_astar: false
       allow_unknown: true
-    # --- Variante A* SmacPlanner2D (CM9) — trop strict ici, cf. comparaison §9 ---
+    # --- A* SmacPlanner2D variant - too strict here ---
     # GridBased:
     #   plugin: "nav2_smac_planner/SmacPlanner2D"
     #   tolerance: 0.5
@@ -199,8 +199,8 @@ local_costmap:
       plugins: ["voxel_layer", "inflation_layer"]
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.0   # L18: gradient plus doux → le planner accepte de
-        inflation_radius: 0.25     # plonger DANS les pièces (près des murs/tags) au lieu
+        cost_scaling_factor: 2.0   # softer gradient so the planner enters
+        inflation_radius: 0.25     # plonger dans les pièces (près des murs/tags) au lieu
                                    # de rester dans les couloirs. robot_radius=0.22 → 0.25
                                    # garde un petit buffer. Corrige couverture ET entrée pièces.
       voxel_layer:
@@ -258,8 +258,8 @@ global_costmap:
         map_subscribe_transient_local: true
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 2.0   # L18: gradient plus doux → le planner accepte de
-        inflation_radius: 0.25     # plonger DANS les pièces (près des murs/tags) au lieu
+        cost_scaling_factor: 2.0   # softer gradient so the planner enters
+        inflation_radius: 0.25     # plonger dans les pièces (près des murs/tags) au lieu
                                    # de rester dans les couloirs. robot_radius=0.22 → 0.25
                                    # garde un petit buffer. Corrige couverture ET entrée pièces.
       always_send_full_costmap: true

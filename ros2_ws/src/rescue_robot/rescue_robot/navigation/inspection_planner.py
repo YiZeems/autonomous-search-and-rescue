@@ -1,10 +1,9 @@
 """Plan AUTONOMOUS room-inspection poses from the robot's own SLAM map.
 
-Conformance (IA712 Projet B — "explore an UNKNOWN environment, locate victims,
-WITHOUT human intervention"): the ONLY input is the map the robot built itself —
-NO victim coordinates, NO hand-authored route. The free space is segmented into
-regions; each OUTER room gets ONE inspection pose ~`offset` m off its nearest wall,
-facing that wall, snapped to a navigable free cell, the set ordered as a perimeter
+The inspection poses are derived from the SLAM map the robot built itself. The free
+space is segmented into regions; each outer room gets one inspection pose ~`offset` m
+off its nearest wall, facing that wall, snapped to a navigable free cell, the set
+ordered as a perimeter
 loop. Driven with a short camera sweep, this is systematic perimeter search.
 
 Two entry points share one core (`_compute_poses`):

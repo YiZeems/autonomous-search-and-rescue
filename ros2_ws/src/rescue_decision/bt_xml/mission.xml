@@ -10,7 +10,7 @@
                          then clears it (stops the explorer) and returns SUCCESS
     3. InspectPhase   -> raises /mission/inspect_enable (the inspection_node visits the
                          map-derived per-room poses); RUNNING until /mission/inspect_done
-    4. VictimsFound    -> surfaces the live victim count (min_count=0 → never blocks)
+    4. VictimsFound    -> SUCCESS once the registered victim count reaches min_count
     5. PublishMissionDone -> latches /mission_done = true
 
   The robot's actions run in the Python nodes (frontier_explorer_node, inspection_node);
@@ -23,7 +23,7 @@
       <WaitForMap name="wait_for_slam_map"/>
       <ExplorePhase name="explore_until_coverage" threshold="0.90"/>
       <InspectPhase name="inspect_discovered_rooms"/>
-      <VictimsFound name="report_victims" min_count="0"/>
+      <VictimsFound name="report_victims" min_count="1"/>
       <PublishMissionDone name="finalize"/>
     </Sequence>
   </BehaviorTree>

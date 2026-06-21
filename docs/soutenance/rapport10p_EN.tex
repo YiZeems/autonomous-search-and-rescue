@@ -56,7 +56,7 @@
 \begin{document}
 \sloppy
 
-% =================== TITLE BLOCK ===================
+% TITLE BLOCK
 \begin{center}
   {\LARGE\bfseries\color{nccblue} Autonomous Search and Rescue}\\[2pt]
   {\large Project B - IA712 Mobile Robotics, Final Project}\\[3pt]
@@ -88,7 +88,7 @@ frontier exploration, then map-derived room inspection. The final autonomous run
 architecture, the theoretical foundations, the team's decision journey across
 three representative runs, and the lessons learned.}}
 
-% =================== 1. INTRODUCTION ===================
+% 1. INTRODUCTION
 \section{Problem statement and requirements}
 Search-and-rescue robotics addresses a simple but demanding question: when an environment is too
 dangerous for people - a collapsed building, a flooded basement - can a robot go in alone, understand a
@@ -127,7 +127,7 @@ the robot maps the building by SLAM, autonomously visits every room, detects the
 them into the \texttt{map} frame, and stops on a clean annotated map - with \emph{no} prior knowledge
 of the rooms or the victims' locations. The next sections describe the architecture, the concepts it applies, and how we got there.
 
-% =================== 2. ARCHITECTURE ===================
+% 2. ARCHITECTURE
 \section{System architecture}
 The workspace is split into \textbf{four ROS\,2 packages} so the four members can work in parallel:
 \texttt{rescue\_bringup} (launch + configs), \texttt{rescue\_robot} (Python ``megapackage'':
@@ -204,7 +204,7 @@ Each detection yields a \texttt{camera}$\to$\texttt{victim}\_$i$ transform; \tex
 projects it to \texttt{map} via TF2, deduplicates by ID, and persists \texttt{results/victims.json} -
 the ``report their coordinates in the global frame'' requirement.
 
-% =================== 3. THEORETICAL FOUNDATIONS ===================
+% 3. THEORETICAL FOUNDATIONS
 \section{Theoretical foundations}\label{sec:concepts}
 \head{SLAM and loop closure.} The robot builds the map online with \texttt{slam\_toolbox} (pose-graph
 SLAM). Loop closure corrects accumulated drift when the robot
@@ -394,7 +394,7 @@ Behavior Trees (decision) & \texttt{rescue\_decision} (BT.CPP~v3): the two-phase
 \label{tab:concepts}
 \end{table}
 
-% =================== 4. DECISION JOURNEY ===================
+% 4. DECISION JOURNEY
 \section{Decision journey: three representative runs}
 The headline numbers - 97\,\% coverage, four victims, one click - hide a long and instructive road.
 None of it came in one shot: almost every capability we now take for granted was, at some point, a run
@@ -513,7 +513,7 @@ Update was pending. The event log revealed the real causes: GPU \texttt{VIDEO\_T
 $\sim$23$\times$ slower) but lowering the physics/render cadence reduces sustained load without changing
 \emph{simulated} time - so coverage and \texttt{time\_to\_90} are unaffected.
 
-% =================== 5. TEAM / GIT ===================
+% 5. TEAM / GIT
 \section{Team collaboration and task distribution}
 We worked on per-member \texttt{dev/*} branches integrated into \texttt{dev/bl}
 (Fig.~\ref{fig:branches}); \texttt{bl} is the merged version this report describes.
@@ -555,7 +555,7 @@ are merged into \texttt{dev/bl}, the integration branch.}
 (\texttt{rescue\_world});
 \textbf{Paul CINTRA} - perception/detection support and testing (\texttt{dev/paul}).}
 
-% =================== 6. RESULTS ===================
+% 6. RESULTS
 \section{Results}
 Fig.~\ref{fig:seq} shows the live RViz algorithms across the mission; Fig.~\ref{fig:results} the
 deliverable artefacts. All come from the single final run (\texttt{results/examples/l18\_nominal}). A full-mission demo video is available: \url{https://www.youtube.com/watch?v=BKXprWFloFs}.
@@ -621,7 +621,7 @@ bonus benchmark is \emph{resumable} (each run persists its summary, valid runs a
 which is how the campaign survived the host reboots. RViz is captured to HD video on a headless
 machine via a virtual X server, giving the live-algorithm sequence of Fig.~\ref{fig:seq}.
 
-% =================== 7. LESSONS + TIMELINE ===================
+% 7. LESSONS + TIMELINE
 \section{Lessons learned and timeline}
 \head{Lessons learned.} Four lessons stand out, and they are as much about engineering method as about
 robotics. The first is to \emph{measure before prescribing}. Twice we were certain we knew why the host
@@ -686,7 +686,7 @@ and let the Behavior Tree coordinate a shared map.
 We warmly thank \textbf{Zhi Yan}, Teacher-Researcher at ENSTA, for the IA712 module and guidance that
 made this project possible.
 
-% =================== REFERENCES ===================
+% REFERENCES
 \begingroup
 \small
 \begin{thebibliography}{99}

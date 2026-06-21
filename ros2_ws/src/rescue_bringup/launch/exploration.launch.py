@@ -9,8 +9,7 @@ start exploration in a second terminal after `bringup.launch.py` has settled:
     # Terminal 2 (once /map and Nav2 are up)
     ros2 launch rescue_bringup exploration.launch.py
 
-Future (L17): `algo:=info_gain` will swap explore_lite for our custom
-information-gain node from rescue_robot.
+`algo:=info_gain` selects our custom information-gain node from rescue_robot.
 """
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
@@ -37,7 +36,7 @@ def generate_launch_description() -> LaunchDescription:
                               description='Use Gazebo /clock.'),
         DeclareLaunchArgument('algo', default_value='greedy',
                               choices=['greedy', 'info_gain'],
-                              description='Exploration algorithm (info_gain wired in L17).'),
+                              description='Exploration algorithm (greedy | info_gain).'),
         LogInfo(msg=['[rescue_bringup] exploration starting — algo=', algo]),
         explore_lite,
     ])

@@ -56,7 +56,7 @@
 \begin{document}
 \sloppy
 
-% =================== TITLE BLOCK ===================
+% TITLE BLOCK
 \begin{center}
   {\LARGE\bfseries\color{nccblue} Recherche et sauvetage autonomes}\\[2pt]
   {\large Projet B - IA712 Robotique mobile, projet final}\\[3pt]
@@ -88,7 +88,7 @@ carte. Le run autonome final atteint \textbf{97,35\,\% de couverture et 4/4 vict
 Ce rapport présente l'architecture du système, les fondements théoriques, le cheminement
 décisionnel de l'équipe à travers trois runs représentatifs et les enseignements tirés.}}
 
-% =================== 1. INTRODUCTION ===================
+% 1. INTRODUCTION
 \section{Énoncé du problème et exigences}
 La robotique de recherche et sauvetage pose une question simple mais exigeante : lorsqu'un
 environnement est trop dangereux pour des humains - un bâtiment effondré, un sous-sol inondé, une zone
@@ -132,7 +132,7 @@ s'arrête sur une carte annotée et propre - \emph{sans} connaissance préalable
 positions des victimes. Les sections suivantes décrivent l'architecture, les concepts qu'elle
 applique, et comment nous y sommes parvenus.
 
-% =================== 2. ARCHITECTURE ===================
+% 2. ARCHITECTURE
 \section{Architecture du système}
 L'espace de travail est découpé en \textbf{quatre paquets ROS\,2} afin que les quatre membres puissent
 travailler en parallèle : \texttt{rescue\_bringup} (lancement + configs), \texttt{rescue\_robot}
@@ -215,7 +215,7 @@ le tag \emph{affiché mais indétectable}). Chaque détection fournit une transf
 TF2, déduplique par ID et persiste \texttt{results/victims.json} - l'exigence «~rapporter leurs
 coordonnées dans le repère global~».
 
-% =================== 3. THEORETICAL FOUNDATIONS ===================
+% 3. THEORETICAL FOUNDATIONS
 \section{Fondements théoriques}\label{sec:concepts}
 \head{SLAM et fermeture de boucle.} Le robot construit la carte en ligne avec \texttt{slam\_toolbox}
 (SLAM par graphe de poses). La fermeture de boucle corrige la dérive
@@ -410,7 +410,7 @@ Behavior Trees (décision) & \texttt{rescue\_decision} (BT.CPP~v3) : orchestrati
 \label{tab:concepts}
 \end{table}
 
-% =================== 4. DECISION JOURNEY ===================
+% 4. DECISION JOURNEY
 \section{Cheminement décisionnel : trois runs représentatifs}
 Les chiffres phares - 97\,\% de couverture, quatre victimes, un clic - masquent une route longue et
 instructive. Rien n'est venu d'un coup : presque chaque capacité que nous tenons aujourd'hui pour acquise
@@ -540,7 +540,7 @@ rester sur le GPU (le GL logiciel est $\sim$23$\times$ plus lent) mais abaisser 
 physique/rendu réduit la charge soutenue sans changer le temps \emph{simulé} - donc la couverture et le
 \texttt{time\_to\_90} ne sont pas affectés.
 
-% =================== 5. TEAM / GIT ===================
+% 5. TEAM / GIT
 \section{Collaboration d'équipe et répartition des tâches}
 Nous avons travaillé sur des branches \texttt{dev/*} par membre, intégrées dans \texttt{dev/bl}
 (Fig.~\ref{fig:branches}) ; \texttt{bl} est la version fusionnée que décrit ce rapport.
@@ -582,7 +582,7 @@ simulation (WSL/GPU/RTF/DDS), résultats, intégration (\texttt{bl}) et rapport 
 (\texttt{rescue\_world}) ;
 \textbf{Paul CINTRA} - support et tests perception/détection (\texttt{dev/paul}).}
 
-% =================== 6. RESULTS ===================
+% 6. RESULTS
 \section{Résultats}
 La Fig.~\ref{fig:seq} montre les algorithmes RViz en direct au fil de la mission ; la
 Fig.~\ref{fig:results} les artefacts livrables. Tous proviennent de l'unique run final
@@ -654,7 +654,7 @@ valides sont sautés au redémarrage), ce qui a permis à la campagne de survivr
 l'hôte. RViz est capturé en vidéo HD sur une machine sans écran via un serveur X virtuel, donnant la
 séquence d'algorithmes en direct de la Fig.~\ref{fig:seq}.
 
-% =================== 7. LESSONS + TIMELINE ===================
+% 7. LESSONS + TIMELINE
 \section{Enseignements tirés et calendrier}
 \head{Enseignements tirés.} Quatre leçons ressortent, et elles tiennent autant de la méthode d'ingénierie
 que de la robotique. La première est de \emph{mesurer avant de prescrire}. Deux fois nous étions certains
@@ -722,7 +722,7 @@ Behavior Tree coordonner une carte partagée.
 Nous remercions chaleureusement \textbf{Zhi Yan}, enseignant-chercheur à l'ENSTA, pour le module IA712 et
 l'encadrement qui ont rendu ce projet possible.
 
-% =================== REFERENCES ===================
+% REFERENCES
 \renewcommand{\refname}{Références}
 \begingroup
 \small

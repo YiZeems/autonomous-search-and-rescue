@@ -9,7 +9,7 @@ The frontier maths lives in frontier_search.py (pure, unit-tested). This node
 only does the ROS plumbing: map subscription, robot pose via TF, and the Nav2
 action client (fully callback-driven, so it never blocks the executor).
 
-Frontier blacklisting (cf. CM8 "Inaccessible Frontiers" / "blacklist"): a
+Frontier blacklisting: a
 frontier is blacklisted — and never re-selected — when either
   * Nav2 returns a non-SUCCEEDED result for it (planner/controller can't reach
     it: seen-through-a-window, behind inflation, etc.), or
@@ -17,7 +17,7 @@ frontier is blacklisted — and never re-selected — when either
     improving by ``coverage_epsilon`` (a goal Nav2 reports done but that doesn't
     actually grow the map).
 Without this, the explorer loops forever on one unreachable frontier and
-coverage plateaus (observed: stuck at 53.8% re-sending the same goal).
+coverage plateaus.
 
     ros2 run rescue_robot frontier_explorer_node
 """
@@ -47,16 +47,16 @@ class FrontierExplorerNode(Node):
         self.declare_parameter("coverage_stop_threshold", 0.90)
         self.declare_parameter("min_frontier_size", 5)
         self.declare_parameter("replan_period_sec", 3.0)
-        # Blacklist tuning (cf. CM8).
+        # Blacklist tuning.
         self.declare_parameter("blacklist_quantum_m", 0.5)
         self.declare_parameter("stall_repeats", 3)
         self.declare_parameter("coverage_epsilon", 0.005)
         self.declare_parameter("max_blacklist_clears", 3)
-        # RViz pedagogy (cf. CM8 / TP08): besides the cluster centroids, draw the
+        # RViz visualisation: besides the cluster centroids, draw the
         # RAW frontier cells as a per-cluster-coloured CUBE_LIST so the boundary
         # between known-free and unknown is shown exactly like the course figures.
         self.declare_parameter("viz_frontier_cells", True)
-        # L17 bonus: exploration strategy (greedy | info_gain | size_dist).
+        # Exploration strategy (greedy | info_gain | size_dist).
         # IA712_EXPLORE_STRATEGY env overrides the param (used by the benchmark).
         self.declare_parameter("strategy", "info_gain")
         self.declare_parameter("info_gain_lambda", 1.0)
@@ -67,12 +67,12 @@ class FrontierExplorerNode(Node):
         self.declare_parameter("spin_and_scan", True)
         self.declare_parameter("spin_scan_speed", 0.6)      # rad/s
         self.declare_parameter("spin_scan_duration", 7.0)   # s (~ one full turn)
-        # Goal refinement (cf. codex §5): snap the goal to the nearest FREE cell so
+        # Goal refinement: snap the goal to the nearest free cell so
         # Nav2 doesn't reject a centroid sitting in unknown/occupied space; skip IG
         # frontiers revealing fewer than info_gain_min_gain unknown cells.
         self.declare_parameter("goal_snap_radius", 8)       # cells
         self.declare_parameter("info_gain_min_gain", 0)
-        # Reachability pre-check (cf. codex §5/§6): ask Nav2 ComputePathToPose for
+        # Reachability pre-check: ask Nav2 ComputePathToPose for
         # a path BEFORE committing a NavigateToPose goal; if there is no path,
         # blacklist + re-pick immediately instead of wasting a ~60 s timeout.
         self.declare_parameter("precheck_reachable", True)
@@ -115,7 +115,7 @@ class FrontierExplorerNode(Node):
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._path_client = ActionClient(self, ComputePathToPose, "compute_path_to_pose")
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
-        # Visualise the algorithm in RViz (TP08 style): detected frontiers + the
+        # Visualise the algorithm in RViz: detected frontiers + the
         # selected goal as a MarkerArray on /exploration/frontiers.
         self._frontier_pub = self.create_publisher(MarkerArray, "/exploration/frontiers", 10)
         self._tf_buffer = Buffer()
@@ -147,7 +147,7 @@ class FrontierExplorerNode(Node):
         self._enabled = bool(msg.data)
 
     # Distinct colours so adjacent frontier clusters are told apart at a glance
-    # (CM8 / TP08 frontier-segmentation figures). Cycled by cluster index.
+    # Cycled by cluster index.
     _CLUSTER_PALETTE = (
         (0.20, 0.80, 0.25), (0.20, 0.55, 1.00), (1.00, 0.55, 0.00),
         (0.85, 0.20, 0.85), (0.15, 0.80, 0.80), (0.95, 0.85, 0.10),
@@ -155,7 +155,7 @@ class FrontierExplorerNode(Node):
     )
 
     def _publish_frontier_markers(self, clusters, goal, info) -> None:
-        """RViz visualisation of the exploration algorithm, in the CM8 / TP08 style:
+        """RViz visualisation of the exploration algorithm:
 
           * frontier_cells   — every raw frontier cell as a small cube, coloured
                                PER CLUSTER (the boundary known-free|unknown, with
@@ -462,7 +462,7 @@ class FrontierExplorerNode(Node):
         NOT call rclpy.shutdown() here: invoked from inside a timer callback it
         does not unblock rclpy.spin() (the process hangs). Instead the launcher
         (run_demo_tb4.sh, EXPLORE branch) watches for this 'EXPLORATION_DONE'
-        marker, then stops the explorer and proceeds to the L18 finalization
+        marker, then stops the explorer and proceeds to finalization
         (map save + victim annotation)."""
         if self._done:
             return

@@ -128,8 +128,7 @@ class WaypointFollowerNode(Node):
 
             # 2nd pass on the failures: the robot is now elsewhere (often closer / less
             # boxed-in), so a goal unreachable on pass 1 frequently succeeds on pass 2.
-            # Each failed waypoint = a missed victim, so retrying is what lets the patrol
-            # catch all 4 instead of 2-3.
+            # Retry failed goals once after the robot has moved and the costmap has updated.
             for i, wp in failed:
                 self.get_logger().info(f"Retry waypoint {i+1}/{n} (2nd pass)...")
                 if self._goto(wp):

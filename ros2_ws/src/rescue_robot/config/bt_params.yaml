@@ -1,4 +1,0 @@
-bt_supervisor_node:
-  ros__parameters:
-    coverage_threshold: 0.90
-    bt_xml: "search_and_rescue_bt.xml"

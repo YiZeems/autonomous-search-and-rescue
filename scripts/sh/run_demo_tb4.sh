@@ -548,11 +548,7 @@ fi
 echo "[7b/8] Perception + Behavior Tree (passifs)..."
 
 # ---- AprilTag "victimes" : spawn des 5 tags + TF caméra + apriltag_ros ----
-# NOTE: la détection AprilTag dans Ignition dépend de frames namespacés (comme le
-# lidar, cf. ERRORS_AND_FIXES #26) ; les POSITIONS des tags et la TF caméra
-# peuvent demander un ajustement après une passe visuelle dans Gazebo. Si rien
-# n'est détecté, victim_registry publie simplement 0 victime (comportement
-# d'origine) — ça ne casse rien.
+# AprilTag detection depends on the camera TF chain being available.
 if [ "${IA712_APRILTAG:-1}" = "1" ]; then
     # Tags already placed in rescue_arena.sdf via <include> blocks — no dynamic spawn.
     # We only need the camera TF bridge and the apriltag_ros detector.
@@ -858,4 +854,3 @@ echo "Fichiers résultats : ${REPO_ROOT}/results/"
 echo "Logs               : ${LOGDIR}/"
 echo "══════════════════════════════════════════"
 echo ""
-echo "Ces données serviront à l'apprentissage du robot."

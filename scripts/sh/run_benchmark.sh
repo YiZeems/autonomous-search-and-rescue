@@ -45,7 +45,7 @@ VALID_MIN="${IA712_BENCH_VALID_MIN:-250}"
 source /opt/ros/humble/setup.bash 2>/dev/null || true
 
 # Thorough cleanup so memory/processes don't ACCUMULATE across runs — the cause of
-# the host reboot on long sequences (cf. codex §3 "nettoyer avant et après").
+# the host reboot on long sequences (clean up before and after).
 _kill() {
   pkill -9 -f "ign gazebo|ign_gazebo|gz sim|slam_toolbox|nav2|bt_navigator|controller_server|planner_server|behavior_server|lifecycle_manager|velocity_smoother|frontier_explorer|robot_state_publisher|parameter_bridge|ros_gz_bridge|apriltag_node|victim_registry|coverage_evaluator|result_exporter|rviz|waypoint_follower|tf_relay|cmd_vel_relay|scan_throttle|turtlebot4|irobot|create3|spawner" 2>/dev/null || true
   ros2 daemon stop >/dev/null 2>&1 || true

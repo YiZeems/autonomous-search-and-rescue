@@ -2,7 +2,7 @@
 
 Idle until the Behavior Tree raises ``/mission/inspect_enable`` (Bool). Then it reads
 the robot's own ``/map``, derives one inspection pose per discovered outer room
-(`inspection_planner.poses_from_grid` — NO victim coordinates), drives each via Nav2
+(`inspection_planner.poses_from_grid`), drives each via Nav2
 ``NavigateToPose`` (snapped to a free cell, with a short in-place camera sweep at the
 pose so the wall AprilTag is seen), and finally latches ``/mission/inspect_done`` (Bool)
 so the BT can advance. This is the action behind the BT's ``InspectPhase`` node.
@@ -34,8 +34,8 @@ class InspectionNode(Node):
 
         self.declare_parameter("goal_timeout_sec", 150.0)
         self.declare_parameter("goal_snap_radius", 16)
-        self.declare_parameter("dwell_sec", 8.0)
-        self.declare_parameter("dwell_spin_speed", 0.4)   # rad/s, wall sweep
+        self.declare_parameter("dwell_sec", 13.0)
+        self.declare_parameter("dwell_spin_speed", 0.5)    # rad/s; 13 s * 0.5 = ~6.5 rad > full turn
         self.declare_parameter("inspect_grid", 2)
         self.declare_parameter("inspect_offset", 1.3)
         self.declare_parameter("inspect_min_cells", 80)

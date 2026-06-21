@@ -5,7 +5,7 @@
   <description>
     Autonomous search and rescue robot nodes.
     Includes: frontier exploration, victim detection, coverage evaluation,
-    result export, RViz markers, Behavior Tree supervisor, and mock publishers.
+    result export, RViz markers, and mock publishers.
   </description>
   <maintainer email="yimou.zhang@telecom-paris.fr">Yimou ZHANG</maintainer>
   <license>MIT</license>

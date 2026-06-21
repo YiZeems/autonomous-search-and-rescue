@@ -42,7 +42,6 @@ setup(
             'mock_map_publisher = rescue_robot.mocks.mock_map_publisher:main',
             'mock_victim_publisher = rescue_robot.mocks.mock_victim_publisher:main',
             'mock_coverage_publisher = rescue_robot.mocks.mock_coverage_publisher:main',
-            'bt_supervisor_node = rescue_robot.bt.bt_supervisor_node:main',
             'waypoint_follower_node = rescue_robot.navigation.waypoint_follower_node:main',
             'inspection_node = rescue_robot.navigation.inspection_node:main',
             'tf_relay_node = rescue_robot.utils.tf_relay_node:main',

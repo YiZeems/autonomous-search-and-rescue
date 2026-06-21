@@ -39,11 +39,4 @@ def generate_launch_description():
             output='screen',
             parameters=[{'use_sim_time': True}],
         ),
-        Node(
-            package='rescue_robot',
-            executable='bt_supervisor_node',
-            name='bt_supervisor_node',
-            output='screen',
-            parameters=[{'use_sim_time': True}],
-        ),
     ])

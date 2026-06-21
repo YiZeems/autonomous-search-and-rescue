@@ -50,7 +50,7 @@
 \begin{document}
 \sloppy
 
-% =================== BLOC TITRE ===================
+% BLOC TITRE
 \twocolumn[
 \begin{@twocolumnfalse}
 \begin{center}
@@ -84,7 +84,7 @@ couverture et 4/4 victimes}. Cet article pr\'esente l'architecture, la th\'eorie
 \end{@twocolumnfalse}
 ]
 
-% =================== 1. INTRODUCTION ===================
+% 1. INTRODUCTION
 \section{Introduction}
 La robotique de recherche et sauvetage vise \`a envoyer des machines autonomes dans des zones de
 catastrophe o\`u l'humain ne peut p\'en\'etrer sans risque. Le sc\'enario « Projet~B » d'IA712~[1]
@@ -108,7 +108,7 @@ travail est que la compl\'etude de la carte et la couverture des victimes sont d
 approcher sa cam\'era du tag mural. Nous d\'ecoupons donc la mission en deux phases autonomes
 coordonn\'ees par un arbre de comportement, ce que nous \'evaluons ci-dessous.
 
-% =================== 2. SYSTEME ===================
+% 2. SYSTEME
 \section{Syst\`eme et m\'ethode}
 \head{Architecture.} L'espace de travail est divis\'e en quatre paquets ROS\,2 pour permettre le travail
 en parall\`ele : \texttt{rescue\_bringup} (lancement en un clic et configurations Nav2/SLAM/AprilTag),
@@ -203,7 +203,7 @@ par-dessus le chemin, qui traverse donc visiblement les portes.}
 \label{fig:bt}
 \end{figure}
 
-% =================== 3. RESULTATS ===================
+% 3. RESULTATS
 \section{R\'esultats}
 L'ex\'ecution autonome finale (archiv\'ee sous \texttt{results/examples/l18\_nominal}) atteint
 \textbf{97,35\,\% de couverture} du b\^atiment - bien au-del\`a de la cible de 90\,\% - et d\'etecte
@@ -247,7 +247,7 @@ effondr\'e \emph{affamait le rendu de la cam\'era} (un probl\`eme de d\'etection
 l'inspection en deux phases a donn\'e 4/4 et 97\,\% en une ex\'ecution ; nous avons gard\'e un facteur
 temps-r\'eel de 0,7, un r\'eglage plus rapide co\^utant une victime et sollicitant trop le GPU.
 
-% =================== 4. CONCLUSION ===================
+% 4. CONCLUSION
 \section{Conclusion}
 Nous avons construit une cha\^ine compl\`ete et conforme au sujet de recherche et sauvetage autonome
 autour d'un seul TurtleBot~4 : cartographie par SLAM, exploration par fronti\`eres avec crit\`ere de gain
@@ -263,7 +263,7 @@ mieux que le rigide}. Les perspectives incluent l'exploration RRT et un d\'etect
 Nous remercions chaleureusement \textbf{Zhi Yan}, enseignant-chercheur \`a l'ENSTA, pour le cours IA712 et
 l'accompagnement qui ont rendu ce projet possible.
 
-% =================== REFERENCES ===================
+% REFERENCES
 \begingroup
 \scriptsize
 \begin{thebibliography}{9}
