@@ -122,31 +122,34 @@ vers l'exploration, la couverture, Nav2 et l'inspection.
 
 \begin{figure}[t]
 \centering
-\begin{tikzpicture}[node distance=3mm and 5mm]
-  \node[io] (robot) {TurtleBot~4\\\tiny LIDAR + OAK-D};
-  \node[proc,below=7mm of robot] (slam) {\textbf{slam\_toolbox}\\\tiny async + loop closure};
-  \node[proc,right=of slam] (metric) {\textbf{coverage}\\\textbf{evaluator}};
-  \node[proc,above=of metric] (april) {\textbf{apriltag}\\\textbf{\_ros}};
-  \node[btnode,right=8mm of metric,text width=22mm] (bt) {\textbf{rescue\_decision}\\\tiny Wait$\to$Explore$\to$Inspect$\to$done};
-  \node[phase1,below=7mm of bt,xshift=-8mm] (explore) {\textbf{frontier}\\\textbf{explorer}\\\tiny Phase 1};
-  \node[phase2,right=of explore] (inspect) {\textbf{inspection}\\\textbf{node}\\\tiny Phase 2};
-  \node[proc,below=7mm of explore,xshift=8mm] (nav) {\textbf{Nav2}\\\tiny plan+control};
-  \node[proc,above=of bt,xshift=2mm] (reg) {\textbf{victim}\\\textbf{registry}\\\tiny TF2$\to$map};
-  \node[io,right=of bt] (rviz) {RViz2\\\tiny map,victims};
-  \draw[ar] (robot) -- node[arl,left]{\tiny /scan} (slam);
-  \draw[ar] (robot.east) to[bend left=10] node[arl,above]{\tiny /image} (april.west);
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[node distance=4.5mm and 7mm]
+  \node[io] (robot) {TurtleBot~4\\\scriptsize Create~3 + RPLIDAR + OAK-D};
+  \node[proc,below=10mm of robot] (slam) {\textbf{slam\_toolbox}\\\scriptsize async + fermeture de boucle};
+  \node[proc,right=of slam] (metric) {\textbf{coverage\_}\\\textbf{evaluator}};
+  \node[proc,above=of metric] (april) {\textbf{apriltag\_ros}\\\scriptsize tag36h11};
+  \node[btnode,right=14mm of metric,text width=30mm] (bt) {\textbf{rescue\_decision $\cdot$ bt\_runner}\\\scriptsize WaitForMap $\to$ ExplorePhase $\to$ InspectPhase $\to$ mission\_done};
+  \node[phase1,below=8mm of bt,xshift=-10mm] (explore) {\textbf{frontier\_}\\\textbf{explorer}\\\scriptsize Phase 1};
+  \node[phase2,right=of explore] (inspect) {\textbf{inspection\_}\\\textbf{node}\\\scriptsize Phase 2};
+  \node[proc,below=8mm of explore,xshift=8mm] (nav) {\textbf{Nav2}\\\scriptsize planificateur+contrôleur};
+  \node[proc,above=of bt,xshift=2mm] (reg) {\textbf{victim\_}\\\textbf{registry}\\\scriptsize TF2$\to$map};
+  \node[io,right=of bt] (rviz) {RViz2 / disque\\\scriptsize carte, victimes};
+
+  \draw[ar] (robot) -- node[arl,left]{/scan,/odom} (slam);
+  \draw[ar] (robot.east) to[bend left=10] node[arl,above]{/image} (april.west);
   \draw[ar] (slam) -- (metric);
   \draw[ar] (april) -- (reg);
-  \draw[ar] (metric) -- node[arl,below]{\tiny cov} (bt);
-  \draw[ar] (bt.south) to[out=-120,in=60] (explore.north);
-  \draw[ar] (bt.south) to[out=-60,in=90] (inspect.north);
-  \draw[ar] (inspect.north) to[out=120,in=-30] (bt.east);
+  \draw[ar] (metric) -- node[arl,below]{/coverage} (bt);
+  \draw[ar] (bt.south) to[out=-120,in=60] node[arl,right]{enable} (explore.north);
+  \draw[ar] (bt.south) to[out=-60,in=90] node[arl,right]{enable} (inspect.north);
+  \draw[ar] (inspect.north) to[out=120,in=-30] node[arl,right]{inspect\_done} (bt.east);
   \draw[ar] (explore) -- (nav);
   \draw[ar] (inspect) -- (nav);
-  \draw[ar] (nav.west) to[out=180,in=-90] node[arl,left]{\tiny /cmd\_vel} (slam.south);
-  \draw[ar] (reg) -- (bt);
+  \draw[ar] (nav.west) to[out=180,in=-90] node[arl,left]{/cmd\_vel} (slam.south);
+  \draw[ar] (reg) -- node[arl,above]{count} (bt);
   \draw[ar] (bt) -- (rviz);
-\end{tikzpicture}
+  \draw[ar,dashed] (slam) to[out=-90,in=180] (inspect.west);
+\end{tikzpicture}}
 \caption{Architecture du syst\`eme et flux de topics. L'arbre de comportement (\texttt{rescue\_decision})
 orchestre l'explorateur de Phase~1 et l'inspecteur de Phase~2 ; le SLAM alimente la carte de tous.}
 \label{fig:arch}
