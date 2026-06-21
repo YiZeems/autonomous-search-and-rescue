@@ -19,8 +19,8 @@
 \usetheme{default}
 \usecolortheme{default}
 \setbeamercolor{structure}{fg=nccblue}
-\setbeamercolor{frametitle}{fg=white,bg=nccblue}
-\setbeamertemplate{frametitle}{\vspace{2pt}\strut\insertframetitle\strut}
+\setbeamercolor{frametitle}{fg=nccblue}
+\setbeamertemplate{frametitle}{\vspace{0.6mm}{\color{nccblue}\large\bfseries\insertframetitle}\par\vspace{0.3mm}}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
 \setbeamerfont{frametitle}{series=\bfseries}
@@ -33,7 +33,10 @@
   phase1/.style={box,fill=nccsky!15,draw=nccsky},
   phase2/.style={box,fill=nccorange!15,draw=nccorange},
   io/.style={box,fill=nccgreen!12,draw=nccgreen},
+  proc/.style={box,fill=white},
+  btnode/.style={box,fill=nccblue!12,draw=nccblue},
   ar/.style={-{Latex[length=2mm]},draw=nccdark!70,semithick},
+  arl/.style={ar,font=\tiny,inner sep=1pt},
 }
 
 \title{\textbf{Recherche et Sauvetage Autonomes}}
@@ -56,18 +59,18 @@
 \begin{frame}{La mission : recherche \& sauvetage autonomes}
   \begin{columns}[T]
   \begin{column}{0.58\linewidth}
-  \textbf{Scénario~[1] :} un robot explore une zone sinistrée inconnue, trouve des « victimes » (AprilTags),
+  \textbf{Scénario :} un robot explore une zone sinistrée inconnue, trouve des « victimes » (AprilTags),
   et rapporte leurs coordonnées dans le repère global - \emph{sans intervention humaine}.
-  \medskip
+  \smallskip
   \textbf{Exigences que nous satisfaisons :}
-  \begin{itemize}
+  {\small\begin{itemize}
     \item Exploration par frontières autonome, carte $>90\,\%$
-    \item Détection caméra $\to$ \texttt{map} via \texttt{tf2}
+    \item Détection caméra vers \texttt{map} via \texttt{tf2}
     \item Qualité de carte / fermeture de boucle (SLAM)
     \item \textbf{Décision = Arbre de Comportement, pas FSM}
     \item Lancement en un clic
     \item Bonus : glouton vs.\ gain d'information
-  \end{itemize}
+  \end{itemize}}
   \end{column}
   \begin{column}{0.40\linewidth}
   \includegraphics[width=\linewidth]{rviz_live}\\
@@ -75,36 +78,42 @@
   \end{column}
   \end{columns}
   \vfill
-  {\footnotesize\color{nccblue}\textbf{Résultat :} un run autonome continu - \textbf{97,17\,\% de couverture, 4/4 victimes}.}
+  {\footnotesize\color{nccblue}\textbf{Résultat :} un run autonome continu - \textbf{97,35\,\% de couverture, 4/4 victimes}.}
 \end{frame}
 
 % -- Architecture --
 \begin{frame}{Architecture du système - quatre paquets ROS\,2}
   \centering
-  \begin{tikzpicture}[node distance=5mm and 9mm,scale=0.9,transform shape]
-    \node[io] (robot) {TurtleBot~4};
-    \node[box,below=9mm of robot] (slam) {\textbf{slam\_toolbox}};
-    \node[box,right=of slam] (metric) {couverture};
-    \node[box,above=of metric] (april) {apriltag\_ros};
-    \node[box,fill=nccblue!14,right=12mm of metric,text width=28mm] (bt) {\textbf{rescue\_decision $\cdot$ BT}\\\scriptsize WaitForMap$\to$Explore$\to$Inspect};
-    \node[phase1,below=8mm of bt,xshift=-9mm] (explore) {frontier\_explorer\\\scriptsize Phase 1};
-    \node[phase2,right=of explore] (inspect) {inspection\_node\\\scriptsize Phase 2};
-    \node[box,below=8mm of explore,xshift=8mm] (nav) {Nav2};
-    \node[box,above=of bt] (reg) {victim\_registry\\\scriptsize TF2$\to$map};
-    \node[io,right=of bt] (rviz) {RViz / disque};
-    \draw[ar] (robot)--(slam); \draw[ar] (robot.east) to[bend left=12] (april.west);
-    \draw[ar] (slam)--(metric); \draw[ar] (april)--(reg);
-    \draw[ar] (metric)-- node[below,font=\tiny]{/coverage}(bt);
-    \draw[ar] (bt.south) to[out=-120,in=70] node[right,font=\tiny]{enable}(explore.north);
-    \draw[ar] (bt.south) to[out=-60,in=100] node[right,font=\tiny]{enable}(inspect.north);
-    \draw[ar] (inspect.north) to[out=120,in=-20] node[right,font=\tiny]{done}(bt.east);
-    \draw[ar] (explore)--(nav); \draw[ar] (inspect)--(nav);
-    \draw[ar] (nav.west) to[out=180,in=-90] node[left,font=\tiny]{/cmd\_vel}(slam.south);
-    \draw[ar] (reg)--(bt); \draw[ar] (bt)--(rviz);
+  \begin{tikzpicture}[node distance=4mm and 6mm,scale=0.8,transform shape]
+    \node[io] (robot) {TurtleBot~4\\\scriptsize Create~3 + RPLIDAR + OAK-D};
+    \node[proc,below=10mm of robot] (slam) {\textbf{slam\_toolbox}\\\scriptsize async + fermeture de boucle};
+    \node[proc,right=of slam] (metric) {\textbf{coverage\_}\\\textbf{evaluator}};
+    \node[proc,above=of metric] (april) {\textbf{apriltag\_ros}\\\scriptsize tag36h11};
+    \node[btnode,right=14mm of metric,text width=30mm] (bt) {\textbf{rescue\_decision $\cdot$ bt\_runner}\\\scriptsize WaitForMap, ExplorePhase, InspectPhase, mission\_done};
+    \node[phase1,below=8mm of bt,xshift=-10mm] (explore) {\textbf{frontier\_}\\\textbf{explorer}\\\scriptsize Phase 1};
+    \node[phase2,right=of explore] (inspect) {\textbf{inspection\_}\\\textbf{node}\\\scriptsize Phase 2};
+    \node[proc,below=8mm of explore,xshift=8mm] (nav) {\textbf{Nav2}\\\scriptsize planificateur+contrôleur};
+    \node[proc,above=of bt,xshift=2mm] (reg) {\textbf{victim\_}\\\textbf{registry}\\\scriptsize TF2 vers map};
+    \node[io,right=of bt] (rviz) {RViz2 / disque\\\scriptsize carte, victimes};
+    \draw[ar] (robot) -- node[arl,left]{/scan,/odom} (slam);
+    \draw[ar] (robot.east) to[bend left=10] node[arl,above]{/image} (april.west);
+    \draw[ar] (slam) -- (metric);
+    \draw[ar] (april) -- (reg);
+    \draw[ar] (metric) -- node[arl,below]{/coverage} (bt);
+    \draw[ar] (bt.south) to[out=-120,in=60] node[arl,right]{enable} (explore.north);
+    \draw[ar] (bt.south) to[out=-60,in=90] node[arl,right]{enable} (inspect.north);
+    \draw[ar] (inspect.north) to[out=120,in=-30] node[arl,right]{inspect\_done} (bt.east);
+    \draw[ar] (explore) -- (nav);
+    \draw[ar] (inspect) -- (nav);
+    \draw[ar] (nav.west) to[out=180,in=-90] node[arl,left]{/cmd\_vel} (slam.south);
+    \draw[ar] (reg) -- node[arl,above]{count} (bt);
+    \draw[ar] (bt) -- (rviz);
+    \draw[ar,dashed] (slam) to[out=-90,in=180] (inspect.west);
   \end{tikzpicture}
-  \par\medskip
-  {\footnotesize L'\textbf{Arbre de Comportement orchestre} : il déclenche l'explorateur et l'inspecteur via
-  les topics \texttt{/mission/*} ; les nœuds Python font le travail.}
+  \par\smallskip
+  {\footnotesize L'\textbf{Arbre de Comportement orchestre} : il cadence l'explorateur (Phase 1) et l'inspecteur
+  (Phase 2) via les topics \texttt{/mission/*} ; les nœuds Python font le travail. Le SLAM alimente la carte
+  vers l'exploration, la couverture, Nav2 et l'inspection.}
 \end{frame}
 
 % -- Two-phase BT --
@@ -128,27 +137,27 @@
   inspecte chaque pièce à des poses \emph{dérivées de la carte} (sans coordonnées des victimes) pour capter chaque tag mural.}
   \end{column}
   \end{columns}
-  \medskip
+  \smallskip
   {\footnotesize\color{nccblue} Pourquoi deux phases ? L'exploration pure cartographie les pièces depuis les portes mais la caméra
-  ne s'approche jamais à moins de 2\,m des tags muraux $\Rightarrow$ elle plafonne à $\sim$2 victimes.}
+  ne s'approche jamais à moins de 2\,m des tags muraux, donc elle plafonne à $\sim$2 victimes.}
 \end{frame}
 
 % -- Concepts --
 \begin{frame}{Fondements théoriques (issus du cours)}
   \begin{columns}[T]
   \begin{column}{0.54\linewidth}
-  \begin{itemize}
-    \item \textbf{SLAM + fermeture de boucle} - carte en ligne cohérente (CM6--7)~[4].
-    \item \textbf{Exploration par frontières} - limite libre/inconnu~[2] ; \emph{gain d'information}
-      $g(f)=\text{gain}-\lambda\,\text{coût}$~[3] (CM8). Liste noire pour les frontières mortes.
+  {\small\begin{itemize}
+    \item \textbf{SLAM + fermeture de boucle} - carte en ligne cohérente (CM6--7).
+    \item \textbf{Exploration par frontières} - limite libre/inconnu ; \emph{gain d'information}
+      $g(f)=\text{gain}-\lambda\,\text{coût}$ (CM8). Liste noire des frontières mortes (échec Nav2, ou 3$\times$ sans gain, écartée).
     \item \textbf{Planification de chemin} - Dijkstra/NavFn vs.\ A* ; NavFn conservé (tolérant en espace étroit) (CM9).
-    \item \textbf{TF2} - projection détection caméra $\to$ repère global \texttt{map} (CM, exigence~[8]).
-    \item \textbf{Arbre de Comportement} - réactif, composable ; \texttt{Sequence} à mémoire, pas une FSM~[6].
-  \end{itemize}
+    \item \textbf{TF2} - projection détection caméra vers le repère global \texttt{map} (CM, exigence).
+    \item \textbf{Arbre de Comportement} - réactif, composable ; \texttt{Sequence} à mémoire, pas une FSM.
+  \end{itemize}}
   \end{column}
   \begin{column}{0.44\linewidth}
   \centering
-  \begin{tikzpicture}[font=\scriptsize,scale=0.9,transform shape]
+  \begin{tikzpicture}[font=\scriptsize,scale=0.80,transform shape]
     \fill[nccblue!6] (0,0) rectangle (4.2,2.5); \draw[very thick,nccdark] (0,0) rectangle (4.2,2.5);
     \draw[very thick,nccdark] (1.8,2.5)--(1.8,1.7);\draw[very thick,nccdark] (1.8,0)--(1.8,1.0);
     \node[star,star points=5,fill=nccred,draw=black,inner sep=1.3pt] at (3.9,1.25){};
@@ -172,8 +181,8 @@
   \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b1) at (2.45,2.9){\textbf{\color{nccred}Bloqué :} $\sim$2 victimes (caméra $>$2\,m des tags) ; boucle sur des frontières mortes.};
   \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b1](i1){\textbf{\color{nccgreen}Amélioré :} liste noire de frontières ; réglage du RTF ; carte $\sim$90\,\%.};
   \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b2) at (8.05,2.9){\textbf{\color{nccred}Bloqué :} complétude $\neq$ couverture caméra ; patrouille rigide fragile.};
-  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b2](i2){\textbf{\color{nccgreen}Amélioré :} inspection dérivée de la carte ; \textbf{le BT orchestre} $\Rightarrow$ \textbf{4/4 + 97\,\%}.};
-  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b3) at (13.65,2.9){\textbf{\color{nccred}Bloqué :} RTF~1.5 $\to$ 3/4 + surcharge GPU ; tracés semblant traverser les murs.};
+  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b2](i2){\textbf{\color{nccgreen}Amélioré :} inspection dérivée de la carte ; \textbf{le BT orchestre} : \textbf{4/4 + 97\,\%}.};
+  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b3) at (13.65,2.9){\textbf{\color{nccred}Bloqué :} RTF~1.5 donne 3/4 + surcharge GPU ; tracés semblant traverser les murs.};
   \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b3](i3){\textbf{\color{nccgreen}Amélioré :} garder RTF~0.7 ; murs au-dessus du chemin ; capture HD.};
   \draw[-{Latex},very thick,nccdark!55] (5.0,3.7)--(5.5,3.7);
   \draw[-{Latex},very thick,nccdark!55] (10.6,3.7)--(11.1,3.7);
@@ -186,29 +195,65 @@
 % -- Results 1 --
 \begin{frame}{Résultats - algorithmes en direct dans RViz}
   \centering
-  \includegraphics[width=0.32\linewidth]{rviz_seq_1}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_3}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_4}\\[3pt]
-  \includegraphics[width=0.32\linewidth]{rviz_seq_5}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_6}\hfill
-  \includegraphics[width=0.32\linewidth]{trajectory_map}
+  \includegraphics[width=0.275\linewidth]{rviz_seq_1}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_3}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_4}\\[1pt]
+  \includegraphics[width=0.275\linewidth]{rviz_seq_5}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_6}\hfill
+  \includegraphics[width=0.275\linewidth]{trajectory_map}
   \par\smallskip
-  {\footnotesize Exploration $\to$ inspection $\to$ quatre victimes ; en bas à droite : le chemin réel dans le repère carte
-  (murs tracés par-dessus, pour qu'il enfile visiblement les portes - aucun segment ne traverse un mur).}
+  {\scriptsize Exploration, inspection, quatre victimes ; en bas à droite : le chemin réel
+  (repère carte, murs tracés par-dessus - il enfile les portes, aucun segment ne traverse un mur).}
+\end{frame}
+
+% -- Voir l'algorithme : Gazebo vs RViz frontieres --
+\begin{frame}{Voir l'algorithme : Gazebo (simulateur) vs RViz (frontières)}
+  \begin{columns}[c]
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=0.90\linewidth]{gazebo_arena}\\[2pt]
+  {\scriptsize \textbf{Gazebo} - l'arène simulée : murs, victimes (AprilTags) et le robot.}
+  \end{column}
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=0.90\linewidth]{rviz_frontiers}\\[2pt]
+  {\scriptsize \textbf{RViz} - la carte SLAM + les \emph{cellules de frontière colorées par cluster}, la frontière-but (jaune) et le plan Nav2 (bleu).}
+  \end{column}
+  \end{columns}
+  \smallskip
+  {\footnotesize\color{nccblue}\centering Comme en TP (CM8) : chaque \emph{cluster} de frontières a sa couleur, le robot vise la meilleure utilité $g=\text{gain}-\lambda\,\text{coût}$, et l'on \emph{voit} le liseré grignoter l'inconnu jusqu'à $>90\,\%$. Captures : \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
+\end{frame}
+
+% -- Démonstration (vidéo) --
+\begin{frame}{Démonstration}
+  \centering
+  \vfill
+  {\large\bfseries \underline{Démo RobotZ}}\\[3mm]
+  \href{https://www.youtube.com/watch?v=BKXprWFloFs}{\includegraphics[width=0.60\linewidth]{youtube_demo.jpg}}\\[3mm]
+  {\footnotesize Vidéo de la mission complète (run autonome, un clic) :
+  \url{https://www.youtube.com/watch?v=BKXprWFloFs}}
+  \vfill
+\end{frame}
+
+% -- Bonus : benchmark couverture --
+\begin{frame}{Bonus : couverture cartographique - glouton vs gain d'information}
+  \centering
+  \includegraphics[width=0.62\linewidth]{coverage_over_time}\\[1.5mm]
+  {\footnotesize\color{nccblue} Benchmark $n{=}3$ : le \textbf{gain d'information} (orange) atteint la cible
+  90\,\% ; le \textbf{glouton} (bleu) plafonne $\sim$67--70\,\% sans jamais l'atteindre - il s'engage à
+  ouvrir des pièces entières (plus d'inconnu par mètre), là où le glouton grignote localement et s'essouffle.}
 \end{frame}
 
 % -- Results 2 --
 \begin{frame}{Résultats - couverture, carte et conformité}
   \begin{columns}[c]
   \begin{column}{0.5\linewidth}\centering
-  \includegraphics[width=\linewidth]{coverage_curve}\\{\scriptsize Couverture \& chemin en fonction du temps, cible 90\,\%.}
+  \includegraphics[width=0.96\linewidth]{coverage_curve}\\{\scriptsize Couverture \& chemin en fonction du temps, cible 90\,\%.}
   \end{column}
   \begin{column}{0.5\linewidth}\centering
-  \includegraphics[width=0.86\linewidth]{mission_map}\\{\scriptsize Carte finale : 4 victimes + tournée d'inspection autonome.}
+  \includegraphics[width=0.72\linewidth]{mission_map}\\{\scriptsize Carte finale : 4 victimes + tournée d'inspection autonome.}
   \end{column}
   \end{columns}
-  \medskip
-  {\footnotesize\color{nccblue}\centering \textbf{97,17\,\% de couverture $\cdot$ 4/4 victimes $\cdot$ carte annotée $\cdot$ trajectoire enregistrée} - un clic, entièrement autonome.}
+  \smallskip
+  {\footnotesize\color{nccblue}\centering \textbf{97,35\,\% de couverture $\cdot$ 4/4 victimes $\cdot$ carte annotée $\cdot$ trajectoire enregistrée} - un clic, entièrement autonome.}
 \end{frame}
 
 % -- Team / git --
@@ -237,7 +282,7 @@
     \draw[-{Latex},nccorange,thick] (5,0.5) .. controls (5.4,-0.3) .. (6.0,-0.95);
     \fill[nccblue] (6.6,-1.0) circle (2pt);
   \end{tikzpicture}\\
-  {\scriptsize Trois axes de travail $\to$ intégration \texttt{bl}.}
+  {\scriptsize Trois axes de travail vers l'intégration \texttt{bl}.}
   \end{column}
   \end{columns}
 \end{frame}

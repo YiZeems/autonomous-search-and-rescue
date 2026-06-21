@@ -84,7 +84,7 @@ disaster arena, builds a map by SLAM, and localizes four ``victims'' (AprilTags)
 camera detections into the global \texttt{map} frame with \texttt{tf2}. Decision-making is a
 \emph{Behavior Tree} (not an FSM, as required~[1]) that orchestrates a \textbf{two-phase mission}:
 frontier exploration, then map-derived room inspection. The final autonomous run reaches
-\textbf{97.17\,\% coverage and 4/4 victims} in one click. This report covers the system
+\textbf{97.35\,\% coverage and 4/4 victims} in one click. This report covers the system
 architecture, the theoretical foundations from the course, the team's decision journey across
 three representative runs, and the lessons learned.}}
 
@@ -114,7 +114,7 @@ and when the mission is over. The assignment fixes the constraints we satisfy:
 Autonomous exploration (frontier / RRT), \emph{no human input} & Frontier exploration (Yamauchi~[2]) with information-gain selection~[3], gated by the BT\\
 Map quality, loop closure & \texttt{slam\_toolbox} async with loop closure~[4]\\
 Camera detection, project to \texttt{map} via \texttt{tf2} & \texttt{apriltag\_ros} (tag36h11)~[7] $\to$ \texttt{victim\_registry} projects camera$\to$\texttt{map} (TF2)~[8]\\
-Map $>90\,\%$ of the area & \textbf{97.17\,\%}\\
+Map $>90\,\%$ of the area & \textbf{97.35\,\%}\\
 Final map marked with all victim positions & annotated map + 4 victims, Fig.~\ref{fig:results}\\
 Decision = Behavior Tree, \emph{not} FSM & BehaviorTree.CPP~v3~[6]\\
 One-click launch & \texttt{ros2 launch rescue\_bringup bringup\_tb4.launch.py}\\
@@ -220,7 +220,19 @@ selection maximises $\,g(f)=\mathrm{gain}(f)-\lambda\cdot\mathrm{cost}(f)\,$~[3]
 is the \emph{Nav2 path length} (not Euclidean). Our $n{=}3$ benchmark confirms the theory: info-gain
 reaches $0.85\pm0.08$ coverage (the only one above $90\,\%$) vs.\ $0.72$ for greedy. A key robustness
 addition is an \emph{inaccessible-frontier blacklist} keyed by a quantized world coordinate, so a dead
-frontier never gets reselected even as the grid origin shifts.
+frontier never gets reselected even as the grid origin shifts. Concretely, a frontier is blacklisted
+either when Nav2 fails to reach it, or when it is re-selected \textbf{3 times in a row without any
+coverage gain} (the common case in our arena); it is then never proposed again.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.72\linewidth]{rviz_frontiers}
+\caption{Frontier exploration visualised in RViz (lab/TP style, CM8): the \emph{frontier cells} (the
+free/unknown boundary) are coloured \textbf{per cluster} (connected-component segmentation), the yellow
+sphere marks the best-utility goal frontier, and the blue line is the matching Nav2 plan. You \emph{see}
+the coloured rim eat into the unknown up to $>90\,\%$ coverage (capture: \texttt{rviz\_capture.mp4}).}
+\label{fig:rviz-frontiers}
+\end{figure}
 
 \head{Path planning and control (CM9--CM10).} The global planner produces a geometric path; the local
 controller follows it. We compared \emph{Dijkstra/NavFn} vs.\ \emph{A* (Smac)}~[9]: in a tightly
@@ -464,7 +476,7 @@ algorithms - a single, reproducible source for every figure shown.
 \node[draw,fill=nccgreen!8,text width=5.4cm,align=left,below=of b2,inner sep=4pt] (i2)
  {\textbf{\color{nccgreen}Improved:} keep RTF~0.7 (reliable); walls drawn over path (0/568 crossings); per-run files truncated; HD RViz capture.};
 \node[draw=nccdark,fill=nccdark!8,rounded corners,text width=16.8cm,align=center,below=4mm of i1,font=\bfseries] (res)
- {Outcome: one continuous, fully autonomous, assignment-conformant run - 4/4 victims, 97.17\,\% coverage, annotated map, logged trajectory, HD demo.};
+ {Outcome: one continuous, fully autonomous, assignment-conformant run - 4/4 victims, 97.35\,\% coverage, annotated map, logged trajectory, HD demo.};
 \draw[-{Latex},very thick,nccdark!55] (5.55,4.0) -- (6.25,4.0);
 \draw[-{Latex},very thick,nccdark!55] (11.75,4.0) -- (12.45,4.0);
 \end{tikzpicture}
@@ -574,7 +586,7 @@ poses, Nav2 plan, LaserScan and the four victim markers. Captured at HD on a vir
 \begin{subfigure}{0.33\linewidth}\includegraphics[width=\linewidth]{coverage_curve}\caption{Coverage \& path vs.\ time (90\,\% target).}\end{subfigure}\hfill
 \begin{subfigure}{0.33\linewidth}\includegraphics[width=\linewidth]{trajectory_map}\caption{Real path (time-coloured), threading doorways.}\end{subfigure}\hfill
 \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{mission_map}\caption{Final map: 4 victims + inspection tour.}\end{subfigure}
-\caption{Quantitative results: \textbf{97.17\,\%} coverage and \textbf{4/4} victims, fully autonomous.
+\caption{Quantitative results: \textbf{97.35\,\%} coverage and \textbf{4/4} victims, fully autonomous.
 The trajectory is the actual map-frame path; walls are drawn over it, so it visibly passes through
 doorways (verified: no segment crosses a wall).}
 \label{fig:results}

@@ -84,7 +84,7 @@ cloisonnée et inconnue, construit une carte par SLAM et localise quatre «~vict
 projetant les détections caméra dans le repère global \texttt{map} à l'aide de \texttt{tf2}. La prise
 de décision repose sur un \emph{Behavior Tree} (et non une FSM, comme exigé~[1]) qui orchestre une
 \textbf{mission en deux phases} : exploration par frontières, puis inspection des pièces déduites de la
-carte. Le run autonome final atteint \textbf{97,17\,\% de couverture et 4/4 victimes} en un seul clic.
+carte. Le run autonome final atteint \textbf{97,35\,\% de couverture et 4/4 victimes} en un seul clic.
 Ce rapport présente l'architecture du système, les fondements théoriques issus du cours, le cheminement
 décisionnel de l'équipe à travers trois runs représentatifs et les enseignements tirés.}}
 
@@ -115,7 +115,7 @@ que nous satisfaisons :
 Exploration autonome (frontières / RRT), \emph{sans intervention humaine} & Exploration par frontières (Yamauchi~[2]) avec sélection par gain d'information~[3], cadencée par le BT\\
 Qualité de la carte, fermeture de boucle & \texttt{slam\_toolbox} async avec fermeture de boucle~[4]\\
 Détection caméra, projection vers \texttt{map} via \texttt{tf2} & \texttt{apriltag\_ros} (tag36h11)~[7] $\to$ \texttt{victim\_registry} projette caméra$\to$\texttt{map} (TF2)~[8]\\
-Carte $>90\,\%$ de la zone & \textbf{97,17\,\%}\\
+Carte $>90\,\%$ de la zone & \textbf{97,35\,\%}\\
 Carte finale annotée de toutes les positions des victimes & carte annotée + 4 victimes, Fig.~\ref{fig:results}\\
 Décision = Behavior Tree, \emph{pas} de FSM & BehaviorTree.CPP~v3~[6]\\
 Lancement en un clic & \texttt{ros2 launch rescue\_bringup bringup\_tb4.launch.py}\\
@@ -229,7 +229,19 @@ où $\mathrm{cost}$ est la \emph{longueur du chemin Nav2} (pas euclidienne). Not
 confirme la théorie : le gain d'information atteint $0{,}85\pm0{,}08$ de couverture (la seule au-dessus
 de $90\,\%$) contre $0{,}72$ pour le glouton. Un ajout clé de robustesse est une \emph{liste noire de
 frontières inaccessibles} indexée par une coordonnée monde quantifiée, de sorte qu'une frontière morte
-ne soit jamais resélectionnée même lorsque l'origine de la grille se décale.
+ne soit jamais resélectionnée même lorsque l'origine de la grille se décale. Concrètement, une frontière
+est blacklistée soit quand Nav2 échoue à l'atteindre, soit quand elle est re-sélectionnée \textbf{3 fois
+de suite sans gain de couverture} (le cas courant dans notre arène) ; elle n'est alors plus jamais reproposée.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.72\linewidth]{rviz_frontiers}
+\caption{Visualisation de l'exploration par frontières dans RViz (esprit TP, CM8) : les \emph{cellules de
+frontière} (limite connu/inconnu) sont colorées \textbf{par cluster} (segmentation en composantes connexes),
+la sphère jaune marque la frontière-but de meilleure utilité et la ligne bleue le plan Nav2 associé. On
+\emph{voit} le liseré coloré grignoter l'inconnu jusqu'à $>90\,\%$ de couverture (capture : \texttt{rviz\_capture.mp4}).}
+\label{fig:rviz-frontiers}
+\end{figure}
 
 \head{Planification de chemin et contrôle (CM9--CM10).} Le planificateur global produit un chemin
 géométrique ; le contrôleur local le suit. Nous avons comparé \emph{Dijkstra/NavFn} vs.\ \emph{A* (Smac)}~[9] :
@@ -484,7 +496,7 @@ reproductible pour chaque figure présentée.
 \node[draw,fill=nccgreen!8,text width=5.4cm,align=left,below=of b2,inner sep=4pt] (i2)
  {\textbf{\color{nccgreen}Amélioré :} garder RTF~0.7 (fiable) ; murs dessinés par-dessus le chemin (0/568 croisements) ; fichiers tronqués par run ; capture RViz HD.};
 \node[draw=nccdark,fill=nccdark!8,rounded corners,text width=16.8cm,align=center,below=4mm of i1,font=\bfseries] (res)
- {Résultat : un run continu, entièrement autonome et conforme à l'énoncé - 4/4 victimes, 97,17\,\% de couverture, carte annotée, trajectoire enregistrée, démo HD.};
+ {Résultat : un run continu, entièrement autonome et conforme à l'énoncé - 4/4 victimes, 97,35\,\% de couverture, carte annotée, trajectoire enregistrée, démo HD.};
 \draw[-{Latex},very thick,nccdark!55] (5.55,4.0) -- (6.25,4.0);
 \draw[-{Latex},very thick,nccdark!55] (11.75,4.0) -- (12.45,4.0);
 \end{tikzpicture}
@@ -599,7 +611,7 @@ de victimes. Capturé en HD sur un serveur X virtuel.}
 \begin{subfigure}{0.33\linewidth}\includegraphics[width=\linewidth]{coverage_curve}\caption{Couverture \& chemin en fonction du temps (cible 90\,\%).}\end{subfigure}\hfill
 \begin{subfigure}{0.33\linewidth}\includegraphics[width=\linewidth]{trajectory_map}\caption{Chemin réel (coloré dans le temps), se faufilant par les embrasures.}\end{subfigure}\hfill
 \begin{subfigure}{0.32\linewidth}\includegraphics[width=\linewidth]{mission_map}\caption{Carte finale : 4 victimes + tournée d'inspection.}\end{subfigure}
-\caption{Résultats quantitatifs : \textbf{97,17\,\%} de couverture et \textbf{4/4} victimes, entièrement
+\caption{Résultats quantitatifs : \textbf{97,35\,\%} de couverture et \textbf{4/4} victimes, entièrement
 autonome. La trajectoire est le chemin réel dans le repère carte ; les murs sont dessinés par-dessus, si
 bien qu'elle passe visiblement par les embrasures (vérifié : aucun segment ne traverse un mur).}
 \label{fig:results}

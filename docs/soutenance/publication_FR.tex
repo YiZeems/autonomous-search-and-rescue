@@ -77,7 +77,7 @@ comme l'exige le sujet~[1]) qui orchestre une \textbf{mission en deux phases} : 
 fronti\`eres, puis une inspection des pi\`eces d\'eriv\'ee de la carte. Nous montrons que l'exploration
 pure ach\`eve la carte mais manque structurellement les victimes, car la cam\'era n'approche jamais assez
 pr\`es des tags muraux ; une seconde phase autonome, qui d\'erive une pose d'inspection par pi\`ece
-d\'ecouverte, comble cet \'ecart. L'ex\'ecution finale autonome en un clic atteint \textbf{97,17\,\% de
+d\'ecouverte, comble cet \'ecart. L'ex\'ecution finale autonome en un clic atteint \textbf{97,35\,\% de
 couverture et 4/4 victimes}. Cet article pr\'esente l'architecture, la th\'eorie sous-jacente et une
 \'evaluation quantitative.}}
 \vspace{8pt}
@@ -162,9 +162,9 @@ global » issue du cours sur les rep\`eres.
 \head{Exploration et planification.} Une \emph{fronti\`ere} est la limite entre cellules libres et
 inconnues~[2]. La s\'election gloutonne prend la fronti\`ere la plus proche ; la s\'election par
 \emph{gain d'information} maximise $g(f)=\mathrm{gain}(f)-\lambda\cdot\mathrm{co\hat ut}(f)$, o\`u le
-co\^ut est la \emph{longueur du chemin} Nav2 plut\^ot que la distance euclidienne. Une liste noire des
-fronti\`eres inaccessibles, index\'ee par une coordonn\'ee monde quantifi\'ee, \'evite qu'une fronti\`ere
-morte soit re-s\'electionn\'ee. Pour la planification globale nous avons conserv\'e Dijkstra/NavFn plut\^ot
+co\^ut est la \emph{longueur du chemin} Nav2. Une liste noire index\'ee par coordonn\'ee monde quantifi\'ee
+\'ecarte d\'efinitivement une fronti\`ere morte d\`es que Nav2 \'echoue \`a l'atteindre ou qu'elle est
+re-choisie \textbf{3~fois sans gain de couverture}. Pour la planification globale nous avons conserv\'e Dijkstra/NavFn plut\^ot
 que A*/Smac : dans une ar\`ene cloisonn\'ee le robot d\'emarre souvent dans la couche d'inflation, o\`u
 A* \'echoue (« d\'epart en zone l\'etale ») alors que NavFn le tol\`ere ; le contr\^oleur est DWB.
 
@@ -206,7 +206,7 @@ par-dessus le chemin, qui traverse donc visiblement les portes.}
 % =================== 3. RESULTATS ===================
 \section{R\'esultats}
 L'ex\'ecution autonome finale (archiv\'ee sous \texttt{results/examples/l18\_nominal}) atteint
-\textbf{97,17\,\% de couverture} du b\^atiment - bien au-del\`a de la cible de 90\,\% - et d\'etecte
+\textbf{97,35\,\% de couverture} du b\^atiment - bien au-del\`a de la cible de 90\,\% - et d\'etecte
 \textbf{4/4 victimes} en une seule mission continue et enti\`erement autonome, lanc\'ee par une commande,
 \texttt{ros2 launch rescue\_bringup bringup\_tb4.launch.py}. La Fig.~\ref{fig:results} pr\'esente la courbe
 de couverture, la trajectoire r\'eelle dans le rep\`ere \texttt{map} et la carte finale annot\'ee. La
@@ -219,7 +219,7 @@ les quatre d\'etections surviennent durant le balayage de la Phase~2.
 \centering
 \begin{subfigure}{0.44\linewidth}\includegraphics[width=\linewidth]{coverage_curve}\caption{Couverture et longueur de chemin selon le temps, face \`a la cible de 90\,\%.}\end{subfigure}\hfill
 \begin{subfigure}{0.44\linewidth}\includegraphics[width=\linewidth]{trajectory_map}\caption{Trajectoire enregistr\'ee (rep\`ere \texttt{map}), color\'ee par le temps, traversant les portes.}\end{subfigure}
-\caption{R\'esultats quantitatifs de l'ex\'ecution finale : \textbf{97,17\,\%} de couverture et
+\caption{R\'esultats quantitatifs de l'ex\'ecution finale : \textbf{97,35\,\%} de couverture et
 \textbf{4/4} victimes, enti\`erement autonome.}
 \label{fig:results}
 \end{figure}
@@ -255,7 +255,7 @@ d'information, projection TF2 des d\'etections AprilTag dans le rep\`ere global,
 comportement qui \emph{orchestre} une mission en deux phases. La le\c{c}on cl\'e est que la compl\'etude
 de la carte et la couverture des victimes sont des objectifs distincts ; une phase d'inspection autonome
 d\'eriv\'ee de la carte les r\'econcilie et fait passer la d\'etection de $\sim$2/4 \`a 4/4 tout en
-maintenant 97,17\,\% de couverture. Plus largement, le projet a renforc\'e trois principes :
+maintenant 97,35\,\% de couverture. Plus largement, le projet a renforc\'e trois principes :
 \emph{mesurer avant de prescrire}, \emph{une correction r\'ev\`ele la suivante} et \emph{le robuste vaut
 mieux que le rigide}. Les perspectives incluent l'exploration RRT et un d\'etecteur de victimes appris.
 

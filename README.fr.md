@@ -74,16 +74,25 @@
 
 ## Résultats en un coup d'œil
 
-Un run continu, 100 % autonome : **97,17 % de couverture et 4/4 victimes**, un seul clic, sans aucune
+Un run continu, 100 % autonome : **97,35 % de couverture et 4/4 victimes**, un seul clic, sans aucune
 connaissance préalable des pièces ni de la position des victimes.
 
-| RViz en direct (carte + victimes + algos) | Parcours réellement emprunté (coloré par le temps) |
+| Exploration par frontières dans RViz (esprit TP) | Arène Gazebo (vue de côté, AprilTags visibles) |
 |:--:|:--:|
-| ![RViz live](docs/report/figures/rviz_live.png) | ![Trajectoire](docs/report/figures/trajectory_map.png) |
+| ![Frontières RViz](docs/report/figures/rviz_frontiers.png) | ![Arène Gazebo](docs/report/figures/gazebo_arena.png) |
 | **Carte finale : 4 victimes + tournée d'inspection autonome** | **Couverture & distance vs. temps (objectif 90 %)** |
 | ![Carte mission](docs/report/figures/mission_map.png) | ![Couverture](docs/report/figures/coverage_curve.png) |
+| **RViz en direct (carte + victimes + algos)** | **Parcours réellement emprunté (coloré par le temps)** |
+| ![RViz live](docs/report/figures/rviz_live.png) | ![Trajectoire](docs/report/figures/trajectory_map.png) |
 
 ![Algorithmes en action - les deux phases orchestrées par le BT](docs/report/figures/algorithms_two_phase.png)
+
+*L'exploration par frontières est visualisée en direct dans RViz comme en TP (CM8) : les **cellules de
+frontière** (limite libre/inconnu) sont colorées **par cluster**, la sphère jaune est la frontière-but de
+meilleure utilité, et la ligne bleue le plan Nav2 - on voit le liseré coloré grignoter l'inconnu jusqu'à
+>90 % de couverture. Deux captures vidéo sont produites à chaque run : **`results/gazebo_capture.mp4`**
+(l'arène simulée, vue de côté pour lire les AprilTags muraux) et **`results/rviz_capture.mp4`** (la carte
+SLAM + les frontières + l'inspection).*
 
 *Phase 1 (bleu) : exploration par frontières construit la carte ; Phase 2 (orange) : inspection de
 chaque pièce à des poses dérivées de la carte pour capter chaque AprilTag mural. Les murs sont dessinés

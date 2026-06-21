@@ -60,12 +60,17 @@ The two scripts run XeLaTeX twice (for the table of contents / `\cite` reference
 ```bash
 cd docs/soutenance
 
-# report — builds both EN and FR (or pass EN / FR for one)
-bash compile_rapport10p.sh          # -> rapport10p_EN.pdf, rapport10p_FR.pdf
-bash compile_rapport10p.sh EN       # -> rapport10p_EN.pdf only
+# everything at once — builds the 9 documents and prints a page-count summary
+bash compile_all.sh
 
-# presentation — builds both EN and FR
-bash compile_presentation10m.sh     # -> presentation10m.pdf, presentation10m_FR.pdf
+# or per document (each builds EN + FR, or pass EN / FR for one):
+bash compile_rapport10p.sh           # -> rapport10p_EN.pdf, rapport10p_FR.pdf
+bash compile_presentation10m.sh      # -> presentation10m.pdf, presentation10m_FR.pdf
+bash compile_publication.sh          # -> publication_EN.pdf, publication_FR.pdf
+bash compile_scripts.sh              # -> scripts_presentation10m_EN.pdf, _FR.pdf
+bash compile_rapport_pedagogique.sh  # -> rapport_pédagogique_FR.pdf (~30 pages)
+
+bash compile_rapport10p.sh EN        # example: only one language
 ```
 
 Each script prints `[OK] <doc>.pdf — N pages` on success, or `[FAIL]` with the first

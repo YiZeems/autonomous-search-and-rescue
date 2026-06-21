@@ -45,6 +45,15 @@ class InspectionNode(Node):
         # pulled toward the room interior (out of the wall inflation). See _goto.
         self.declare_parameter("retry_wait_sec", 4.0)
         self.declare_parameter("interior_pulls", [0.5, 0.9, 1.3])  # m, pull toward room centre
+        # Last-resort robustness: if the standoff pose AND every straight interior pull are
+        # unreachable (Nav2 won't plan into that corner — inflated/rough map), try a FAN of
+        # vantage points on rings around the standoff pose. They stay within camera range
+        # (<= ~max radius), so the robot can approach the corner FROM THE SIDE and still
+        # sweep the wall tag. This is what recovers a room a single straight line of pulls
+        # cannot (observed: NW room skipped -> victim missed). Radii kept <= 1.1 m so the
+        # vantage is comfortably inside the ~2 m AprilTag detection range of the wall.
+        self.declare_parameter("vantage_radii", [0.7, 1.1])  # m, rings around the standoff pose
+        self.declare_parameter("vantage_count", 8)           # angular samples per ring
 
         self._timeout = float(self.get_parameter("goal_timeout_sec").value)
         self._snap_radius = int(self.get_parameter("goal_snap_radius").value)
@@ -55,6 +64,8 @@ class InspectionNode(Node):
         self._min_cells = int(self.get_parameter("inspect_min_cells").value)
         self._retry_wait = float(self.get_parameter("retry_wait_sec").value)
         self._pulls = [float(p) for p in self.get_parameter("interior_pulls").value]
+        self._vantage_radii = [float(r) for r in self.get_parameter("vantage_radii").value]
+        self._vantage_count = int(self.get_parameter("vantage_count").value)
 
         self._client = ActionClient(self, NavigateToPose, "navigate_to_pose")
         self._cmd_pub = self.create_publisher(Twist, "/cmd_vel", 10)
@@ -160,24 +171,52 @@ class InspectionNode(Node):
             if k > 0:
                 self.get_logger().info(
                     f"  goal failed — waiting {self._retry_wait:.0f}s for the costmap to settle, "
-                    f"then fallback {k}/{len(candidates)-1} (pose pulled toward the room interior)")
+                    f"then fallback {k}/{len(candidates)-1} (interior pull / side vantage near the room)")
                 self._wait_settle(self._retry_wait)
             if self._send_goal_xy(cx, cy, yaw):
                 self._sweep()
                 return True
-        self.get_logger().warn("  pose unreachable after all fallbacks — skipping this room.")
+        self.get_logger().warn(
+            f"  pose unreachable after all {len(candidates)} candidates (pulls + vantage fan) "
+            f"— skipping this room.")
         return False
 
     def _candidate_poses(self, wp: dict):
-        """Yield (x, y) candidates: the snapped original pose first, then the same pose pulled
-        progressively toward the room interior (opposite the wall-facing yaw) so it leaves the
-        wall inflation layer where Nav2 refuses to plan. Each candidate is snapped to a free cell."""
+        """Yield (x, y) candidates in increasing order of desperation:
+          1. the snapped original standoff pose;
+          2. the same pose pulled straight toward the room interior (opposite the wall-facing
+             yaw) so it leaves the wall inflation layer where Nav2 refuses to plan;
+          3. a FAN of vantage points on rings around the standoff pose, so when the whole
+             straight-back line is blocked the robot can still reach the corner from the side.
+        Each candidate is snapped to the nearest free cell; duplicates are skipped."""
         yaw = float(wp.get("yaw", 0.0))
-        yield self._snap(float(wp["x"]), float(wp["y"]))
+        x0, y0 = float(wp["x"]), float(wp["y"])
+        seen = set()
+
+        def _emit(x, y):
+            sx, sy = self._snap(x, y)
+            key = (round(sx, 2), round(sy, 2))
+            if key in seen:
+                return None
+            seen.add(key)
+            return (sx, sy)
+
+        c = _emit(x0, y0)
+        if c:
+            yield c
         for pull in self._pulls:
-            px = float(wp["x"]) - pull * math.cos(yaw)
-            py = float(wp["y"]) - pull * math.sin(yaw)
-            yield self._snap(px, py)
+            c = _emit(x0 - pull * math.cos(yaw), y0 - pull * math.sin(yaw))
+            if c:
+                yield c
+        # Fan: rings around the standoff pose, angles swept around the full circle. Reaching
+        # any one of these and doing the 360 deg sweep still catches the wall tag (in range).
+        n = max(1, self._vantage_count)
+        for r in self._vantage_radii:
+            for i in range(n):
+                a = 2.0 * math.pi * i / n
+                c = _emit(x0 + r * math.cos(a), y0 + r * math.sin(a))
+                if c:
+                    yield c
 
     def _sweep(self):
         """Spin in place for at least a FULL turn (+15 %) so every wall is swept regardless of

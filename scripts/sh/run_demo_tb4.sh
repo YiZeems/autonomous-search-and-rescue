@@ -15,8 +15,8 @@
 #     can free itself (was wait-only; see nav2_params_tb4.yaml behavior_server)
 #
 # Usage:
-#   ./scripts/run.sh demo-tb4                       # standard model, maze world
-#   MODEL=standard WORLD=depot ./scripts/run.sh demo-tb4
+#   ./scripts/run.sh demo-tb4                       # standard model, rescue_arena world
+#   MODEL=standard IA712_TB4_WORLD=maze ./scripts/run.sh demo-tb4   # override world
 #   IA712_TB4_HEADLESS=1 ./scripts/run.sh demo-tb4  # same (headless is always on)
 
 set -eo pipefail
@@ -35,7 +35,7 @@ source_platform_profile "${REPO_ROOT}"
 # because Ogre2's gpu_lidar fails under software GL; the platform profile uses
 # Ogre v1 on Mac/Parallels so the lidar sees the environment (ERRORS_AND_FIXES #10).
 MODEL="${1:-${MODEL:-standard}}"
-WORLD="${IA712_TB4_WORLD:-maze}"
+WORLD="${IA712_TB4_WORLD:-rescue_arena}"
 NAMESPACE="turtlebot4"
 
 WS_INSTALL="${WS_DIR}/install"
@@ -134,6 +134,32 @@ _cleanup() {
     _CLEANUP_DONE=1
     echo ""
     echo "[demo-tb4] Arrêt en cours..."
+    # Finalise the Gazebo video BEFORE killing the GUI, else the .mp4 is left
+    # unencoded/corrupt. Stop the recorder and give it a moment to flush.
+    if [ -n "${GAZEBO_VIDEO:-}" ] && kill -0 "${GUI_PID:-0}" 2>/dev/null; then
+        echo "[demo-tb4] Finalisation de la vidéo Gazebo (${GAZEBO_VIDEO##*/})..."
+        ign service -s /gui/record_video \
+            --reqtype ignition.msgs.VideoRecord \
+            --reptype ignition.msgs.Boolean --timeout 4000 \
+            --req 'stop: true' >/dev/null 2>&1 || true
+        sleep 6
+        [ -f "${GAZEBO_VIDEO}" ] \
+            && echo "[demo-tb4] Vidéo Gazebo enregistrée : ${GAZEBO_VIDEO}" \
+            || echo "[demo-tb4] [WARN] vidéo Gazebo absente (recorder non démarré ?)"
+    fi
+    # Finalise the RViz screen recording (ffmpeg) BEFORE killing RViz: SIGINT lets
+    # ffmpeg flush the moov atom so the .mp4 is playable.
+    if [ -n "${RVIZ_FFMPEG_PID:-}" ] && kill -0 "${RVIZ_FFMPEG_PID}" 2>/dev/null; then
+        echo "[demo-tb4] Finalisation de la vidéo RViz..."
+        kill -INT "${RVIZ_FFMPEG_PID}" 2>/dev/null || true
+        for _w in 1 2 3 4 5 6 7 8; do kill -0 "${RVIZ_FFMPEG_PID}" 2>/dev/null || break; sleep 1; done
+        kill -9 "${RVIZ_FFMPEG_PID}" 2>/dev/null || true
+        [ -n "${RVIZ_VIDEO:-}" ] && [ -f "${RVIZ_VIDEO}" ] \
+            && echo "[demo-tb4] Vidéo RViz enregistrée : ${RVIZ_VIDEO}"
+    fi
+    # Tear down the headless recording RViz + its Xvfb.
+    [ -n "${RVIZ_REC_PID:-}" ] && kill "${RVIZ_REC_PID}" 2>/dev/null || true
+    [ -n "${XVFB_PID:-}" ] && kill "${XVFB_PID}" 2>/dev/null || true
     for pid in \
         "${WP_PID:-}" "${RVIZ_PID:-}" "${NAV2_PID:-}" \
         "${CMD_VEL_RELAY_PID:-}" "${TF_RELAY_PID:-}" "${TF_STATIC_RELAY_PID:-}" "${THROTTLE_PID:-}" \
@@ -218,13 +244,47 @@ kill -0 "${IGN_PID}" 2>/dev/null \
 #    Désactiver avec IA712_TB4_GUI=0 (CI / RAM limitée).
 if [ "${IA712_TB4_GUI:-1}" != "0" ]; then
     echo "[2b/8] Client GUI Gazebo (render=${RENDER_ENGINE})..."
-    ign gazebo -g --render-engine "${RENDER_ENGINE}" \
+    # Custom GUI config: zoomed-out overhead camera (whole arena visible) + a
+    # VideoRecorder plugin so we can capture the Gazebo 3D scene to .mp4.
+    # Override the config with IA712_GZ_GUI_CONFIG=<file> (empty = stock default).
+    GUI_CONFIG="${IA712_GZ_GUI_CONFIG-${REPO_ROOT}/config/gazebo_gui_record.config}"
+    _gui_cfg_arg=()
+    if [ -n "${GUI_CONFIG}" ] && [ -f "${GUI_CONFIG}" ]; then
+        _gui_cfg_arg=(--gui-config "${GUI_CONFIG}")
+        echo "  GUI config : ${GUI_CONFIG##*/} (vue dézoomée + enregistreur vidéo)"
+    fi
+    ign gazebo -g --render-engine "${RENDER_ENGINE}" "${_gui_cfg_arg[@]}" \
         >"${LOGDIR}/ign_gui.log" 2>&1 &
     GUI_PID=$!
     sleep 6
-    kill -0 "${GUI_PID}" 2>/dev/null \
-        && echo "  GUI PID=${GUI_PID} — fenêtre Gazebo ouverte" \
-        || echo "  [WARN] GUI fermée (voir ${LOGDIR}/ign_gui.log) — la sim continue en headless"
+    if kill -0 "${GUI_PID}" 2>/dev/null; then
+        echo "  GUI PID=${GUI_PID} — fenêtre Gazebo ouverte"
+        # ── Enregistrement vidéo de la scène Gazebo (best-effort) ───────────
+        #    Désactiver avec IA712_GZ_RECORD=0. Sortie persistante dans results/.
+        if [ "${IA712_GZ_RECORD:-1}" != "0" ]; then
+            mkdir -p "${REPO_ROOT}/results"
+            GAZEBO_VIDEO="${IA712_GZ_VIDEO:-${REPO_ROOT}/results/gazebo_capture.mp4}"
+            # The VideoRecorder plugin advertises /gui/record_video once the GUI
+            # scene is rendering; retry a few times while it comes up.
+            ( for _try in 1 2 3 4 5 6; do
+                if ign service -s /gui/record_video \
+                       --reqtype ignition.msgs.VideoRecord \
+                       --reptype ignition.msgs.Boolean --timeout 4000 \
+                       --req "start: true, format: \"mp4\", save_filename: \"${GAZEBO_VIDEO}\"" \
+                       >/dev/null 2>&1; then
+                    echo "[2b/8] Enregistrement Gazebo démarré -> ${GAZEBO_VIDEO}" \
+                        >>"${LOGDIR}/gz_record.log"
+                    exit 0
+                fi
+                sleep 3
+              done
+              echo "[2b/8] [WARN] service /gui/record_video indisponible — pas d'enregistrement Gazebo" \
+                  >>"${LOGDIR}/gz_record.log" ) &
+            echo "  Enregistrement vidéo Gazebo -> ${GAZEBO_VIDEO} (démarrage en tâche de fond)"
+        fi
+    else
+        echo "  [WARN] GUI fermée (voir ${LOGDIR}/ign_gui.log) — la sim continue en headless"
+    fi
 fi
 
 # ── ÉTAPE 3 : Clock bridge + spawn officiel
@@ -450,6 +510,35 @@ sleep 5
 kill -0 "${RVIZ_PID}" 2>/dev/null \
     && echo "  RViz2 PID=${RVIZ_PID} VIVANT" \
     || echo "  [WARN] RViz2 mort — voir ${LOGDIR}/rviz2.log"
+
+# ── Enregistrement vidéo de RViz via Xvfb (framebuffer LISIBLE) ──────────────
+#    Sur WSLg, x11grab de l'écran :0 ne capture que du noir (Xwayland rootless +
+#    RViz rend en OpenGL). On lance donc un RViz HEADLESS dédié dans un
+#    framebuffer virtuel Xvfb (rendu logiciel llvmpipe), dont l'image EST
+#    capturable par ffmpeg. La fenêtre RViz :0 reste visible pour l'opérateur ;
+#    celle-ci, headless, sert UNIQUEMENT à l'enregistrement (mêmes topics, donc
+#    mêmes frontières/carte/victimes). Désactiver avec IA712_RVIZ_RECORD=0.
+#    Sortie persistante dans results/rviz_capture.mp4.
+if [ "${IA712_RVIZ_RECORD:-1}" != "0" ] && command -v ffmpeg >/dev/null 2>&1 \
+   && command -v Xvfb >/dev/null 2>&1; then
+    RVIZ_VIDEO="${IA712_RVIZ_VIDEO:-${REPO_ROOT}/results/rviz_capture.mp4}"
+    RVIZ_REC_DISPLAY="${IA712_RVIZ_REC_DISPLAY:-:99}"
+    RVIZ_REC_GEO="${IA712_RVIZ_REC_GEO:-1600x1000}"
+    Xvfb "${RVIZ_REC_DISPLAY}" -screen 0 "${RVIZ_REC_GEO}x24" >"${LOGDIR}/xvfb_rviz.log" 2>&1 &
+    XVFB_PID=$!
+    sleep 3
+    DISPLAY="${RVIZ_REC_DISPLAY}" LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe \
+        rviz2 -d "${RVIZ_CFG}" --ros-args -p use_sim_time:=true \
+        >"${LOGDIR}/rviz_rec.log" 2>&1 &
+    RVIZ_REC_PID=$!
+    sleep 12   # laisser RViz (GL logiciel) démarrer et peindre la scène
+    DISPLAY="${RVIZ_REC_DISPLAY}" ffmpeg -hide_banner -loglevel error -nostdin \
+        -f x11grab -framerate 10 -video_size "${RVIZ_REC_GEO}" -i "${RVIZ_REC_DISPLAY}.0" \
+        -vcodec libx264 -pix_fmt yuv420p -preset ultrafast -y "${RVIZ_VIDEO}" \
+        >"${LOGDIR}/rviz_record.log" 2>&1 &
+    RVIZ_FFMPEG_PID=$!
+    echo "  Enregistrement vidéo RViz (Xvfb ${RVIZ_REC_DISPLAY}, ${RVIZ_REC_GEO}) -> ${RVIZ_VIDEO}"
+fi
 
 # ── ÉTAPE 7b : Perception (AprilTags + registry + apriltag_ros) + Behavior Tree.
 #    Tous PASSIFS (ne pilotent pas le robot) — sûrs à laisser ON.

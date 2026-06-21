@@ -74,7 +74,7 @@ Tree} (not a finite-state machine, as the assignment requires~[1]) that orchestr
 mission}: frontier-based exploration first, then a map-derived room inspection. We show that pure
 exploration completes the map but structurally misses victims, because the camera never approaches the
 wall-mounted tags closely enough; an autonomous second phase that derives one inspection pose per
-discovered room closes this gap. The final one-click autonomous run reaches \textbf{97.17\,\% coverage
+discovered room closes this gap. The final one-click autonomous run reaches \textbf{97.35\,\% coverage
 and 4/4 victims}. This paper presents the system architecture, the underlying theory, and a quantitative
 evaluation.}}
 \vspace{8pt}
@@ -159,8 +159,8 @@ requirement directly from the course material on coordinate frames.
 \head{Exploration and planning.} A \emph{frontier} is the boundary between free and unknown
 cells~[2]. Greedy selection takes the nearest frontier; \emph{information-gain} selection maximises
 $g(f)=\mathrm{gain}(f)-\lambda\cdot\mathrm{cost}(f)$, where $\mathrm{cost}$ is the Nav2 \emph{path length}
-rather than Euclidean distance. A robustness addition is an inaccessible-frontier blacklist keyed by a
-quantized world coordinate, so a dead frontier is never reselected even as the grid origin shifts. For
+rather than Euclidean distance. A blacklist keyed by a quantized world coordinate drops a dead frontier
+for good as soon as Nav2 fails to reach it or it is re-chosen \textbf{3 times with no coverage gain}. For
 global planning we kept Dijkstra/NavFn over A*/Smac: in a tightly partitioned arena the robot frequently
 starts inside the inflation layer, where A* aborts (``start in lethal space'') but NavFn tolerates it; the
 controller is the sampling-based DWB.
@@ -201,7 +201,7 @@ visibly threads the doorways.}
 
 % =================== 3. RESULTS ===================
 \section{Results}
-The final autonomous run (archived as \texttt{results/examples/l18\_nominal}) reaches \textbf{97.17\,\%
+The final autonomous run (archived as \texttt{results/examples/l18\_nominal}) reaches \textbf{97.35\,\%
 coverage} of the building - well above the 90\,\% target - and detects \textbf{4/4 victims} in a
 single continuous, fully autonomous mission launched with one command,
 \texttt{ros2 launch rescue\_bringup bringup\_tb4.launch.py}. Fig.~\ref{fig:results} reports the coverage
@@ -215,7 +215,7 @@ detections occur during the Phase-2 inspection sweep.
 \centering
 \begin{subfigure}{0.47\linewidth}\includegraphics[width=\linewidth]{coverage_curve}\caption{Coverage and path length vs.\ time, against the 90\,\% target.}\end{subfigure}\hfill
 \begin{subfigure}{0.47\linewidth}\includegraphics[width=\linewidth]{trajectory_map}\caption{Logged map-frame trajectory, time-coloured, threading the doorways.}\end{subfigure}
-\caption{Quantitative results of the final run: \textbf{97.17\,\%} coverage and \textbf{4/4} victims,
+\caption{Quantitative results of the final run: \textbf{97.35\,\%} coverage and \textbf{4/4} victims,
 fully autonomous.}
 \label{fig:results}
 \end{figure}
@@ -249,7 +249,7 @@ TurtleBot~4: SLAM-based mapping, frontier exploration with an information-gain c
 of AprilTag detections into the global frame, and a Behavior Tree that \emph{orchestrates} a two-phase
 mission. The key lesson is that map completeness and victim coverage are distinct objectives; an
 autonomous, map-derived inspection phase reconciles them and lifts detection from $\sim$2/4 to 4/4 while
-keeping coverage at 97.17\,\%. More broadly, the project reinforced three engineering principles:
+keeping coverage at 97.35\,\%. More broadly, the project reinforced three engineering principles:
 \emph{measure before prescribing}, \emph{one fix reveals the next} (victim detection crossed six stacked
 causes), and \emph{robust beats rigid} (adaptive exploration plus a sweep outperforms a fixed waypoint
 patrol). Future work includes RRT-based exploration and a learned victim detector beyond fiducials.

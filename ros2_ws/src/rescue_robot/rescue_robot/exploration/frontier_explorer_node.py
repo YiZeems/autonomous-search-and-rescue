@@ -30,7 +30,7 @@ from rclpy.time import Time
 from geometry_msgs.msg import Point, PoseStamped, Twist
 from nav_msgs.msg import OccupancyGrid
 from nav2_msgs.action import ComputePathToPose, NavigateToPose
-from std_msgs.msg import Bool
+from std_msgs.msg import Bool, ColorRGBA
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from tf2_ros import Buffer, TransformListener
 from visualization_msgs.msg import Marker, MarkerArray
@@ -52,6 +52,10 @@ class FrontierExplorerNode(Node):
         self.declare_parameter("stall_repeats", 3)
         self.declare_parameter("coverage_epsilon", 0.005)
         self.declare_parameter("max_blacklist_clears", 3)
+        # RViz pedagogy (cf. CM8 / TP08): besides the cluster centroids, draw the
+        # RAW frontier cells as a per-cluster-coloured CUBE_LIST so the boundary
+        # between known-free and unknown is shown exactly like the course figures.
+        self.declare_parameter("viz_frontier_cells", True)
         # L17 bonus: exploration strategy (greedy | info_gain | size_dist).
         # IA712_EXPLORE_STRATEGY env overrides the param (used by the benchmark).
         self.declare_parameter("strategy", "info_gain")
@@ -81,6 +85,7 @@ class FrontierExplorerNode(Node):
         self._stall_repeats = int(self.get_parameter("stall_repeats").value)
         self._cov_eps = float(self.get_parameter("coverage_epsilon").value)
         self._max_clears = int(self.get_parameter("max_blacklist_clears").value)
+        self._viz_cells = bool(self.get_parameter("viz_frontier_cells").value)
         self._strategy = os.environ.get(
             "IA712_EXPLORE_STRATEGY", str(self.get_parameter("strategy").value)
         ).strip()
@@ -141,25 +146,79 @@ class FrontierExplorerNode(Node):
             self._cmd_pub.publish(Twist())
         self._enabled = bool(msg.data)
 
-    def _publish_frontier_markers(self, reachable, goal, info) -> None:
-        """RViz visualisation of the exploration algorithm (TP08 style): every detected
-        frontier as a green sphere + the SELECTED next goal as a bigger yellow sphere."""
+    # Distinct colours so adjacent frontier clusters are told apart at a glance
+    # (CM8 / TP08 frontier-segmentation figures). Cycled by cluster index.
+    _CLUSTER_PALETTE = (
+        (0.20, 0.80, 0.25), (0.20, 0.55, 1.00), (1.00, 0.55, 0.00),
+        (0.85, 0.20, 0.85), (0.15, 0.80, 0.80), (0.95, 0.85, 0.10),
+        (0.60, 0.40, 1.00), (1.00, 0.40, 0.55),
+    )
+
+    def _publish_frontier_markers(self, clusters, goal, info) -> None:
+        """RViz visualisation of the exploration algorithm, in the CM8 / TP08 style:
+
+          * frontier_cells   — every raw frontier cell as a small cube, coloured
+                               PER CLUSTER (the boundary known-free|unknown, with
+                               the connected-component segmentation made visible).
+                               Clusters below ``min_frontier_size`` are drawn dim
+                               grey, so the noise-rejection threshold is visible.
+          * frontier_centroids — one sphere per VALID cluster (same colour as its
+                               cells); a blacklisted cluster is greyed out, making
+                               the blacklist mechanism observable.
+          * frontier_goal    — the SELECTED next goal as a bigger yellow sphere.
+        """
         res, ox, oy = info.resolution, info.origin.position.x, info.origin.position.y
+        stamp = self.get_clock().now().to_msg()
         arr = MarkerArray()
-        m = Marker()
-        m.header.frame_id = "map"
-        m.header.stamp = self.get_clock().now().to_msg()
-        m.ns = "frontiers"; m.id = 0; m.type = Marker.SPHERE_LIST; m.action = Marker.ADD
-        m.scale.x = m.scale.y = m.scale.z = 0.18
-        m.color.r, m.color.g, m.color.b, m.color.a = 0.18, 0.65, 0.18, 0.9
-        m.pose.orientation.w = 1.0
-        for c in reachable:
-            wx, wy = fs.cell_to_world(c[0], c[1], res, ox, oy)
-            m.points.append(Point(x=float(wx), y=float(wy), z=0.05))
-        arr.markers.append(m)
+
+        # 1) Raw frontier cells, coloured per cluster (the "frontiers" themselves).
+        cells_m = Marker()
+        cells_m.header.frame_id = "map"; cells_m.header.stamp = stamp
+        cells_m.ns = "frontier_cells"; cells_m.id = 0
+        cells_m.type = Marker.CUBE_LIST; cells_m.action = Marker.ADD
+        cells_m.scale.x = cells_m.scale.y = float(res); cells_m.scale.z = float(res) * 0.2
+        cells_m.pose.orientation.w = 1.0
+
+        # 2) Cluster centroids (only for clusters that survive the size filter).
+        cent_m = Marker()
+        cent_m.header = cells_m.header
+        cent_m.ns = "frontier_centroids"; cent_m.id = 1
+        cent_m.type = Marker.SPHERE_LIST; cent_m.action = Marker.ADD
+        cent_m.scale.x = cent_m.scale.y = cent_m.scale.z = 0.22
+        cent_m.pose.orientation.w = 1.0
+
+        if self._viz_cells:
+            for i, cluster in enumerate(clusters):
+                valid = len(cluster) >= self._min_size
+                if valid:
+                    r, g, b = self._CLUSTER_PALETTE[i % len(self._CLUSTER_PALETTE)]
+                    cell_col = ColorRGBA(r=r, g=g, b=b, a=0.85)
+                else:
+                    # below min_frontier_size -> rejected as noise: dim grey.
+                    cell_col = ColorRGBA(r=0.55, g=0.55, b=0.55, a=0.30)
+                for cx, cy in cluster:
+                    wx, wy = fs.cell_to_world(cx, cy, res, ox, oy)
+                    cells_m.points.append(Point(x=float(wx), y=float(wy), z=0.02))
+                    cells_m.colors.append(cell_col)
+                if not valid:
+                    continue
+                # Centroid sphere, same hue; greyed when the cluster is blacklisted.
+                sx = sum(c[0] for c in cluster) / len(cluster)
+                sy = sum(c[1] for c in cluster) / len(cluster)
+                cwx, cwy = fs.cell_to_world(sx, sy, res, ox, oy)
+                if fs.blacklist_key(cwx, cwy, self._quantum) in self._blacklist:
+                    cent_col = ColorRGBA(r=0.45, g=0.45, b=0.45, a=0.6)  # blacklisted
+                else:
+                    cent_col = ColorRGBA(r=r, g=g, b=b, a=1.0)
+                cent_m.points.append(Point(x=float(cwx), y=float(cwy), z=0.06))
+                cent_m.colors.append(cent_col)
+        arr.markers.append(cells_m)
+        arr.markers.append(cent_m)
+
+        # 3) Selected goal — the frontier the robot is about to drive to.
         g = Marker()
-        g.header = m.header
-        g.ns = "frontier_goal"; g.id = 1; g.type = Marker.SPHERE
+        g.header = cells_m.header
+        g.ns = "frontier_goal"; g.id = 2; g.type = Marker.SPHERE
         g.scale.x = g.scale.y = g.scale.z = 0.45
         g.color.r, g.color.g, g.color.b, g.color.a = 1.0, 0.85, 0.0, 1.0
         g.pose.orientation.w = 1.0
@@ -205,7 +264,8 @@ class FrontierExplorerNode(Node):
             return
 
         cells = fs.find_frontier_cells(msg.data, info.width, info.height)
-        centroids = fs.cluster_centroids(fs.cluster_frontiers(cells), min_size=self._min_size)
+        clusters = fs.cluster_frontiers(cells)
+        centroids = fs.cluster_centroids(clusters, min_size=self._min_size)
         reachable = fs.filter_blacklisted(
             centroids, info.resolution, info.origin.position.x, info.origin.position.y,
             self._blacklist, self._quantum,
@@ -218,7 +278,7 @@ class FrontierExplorerNode(Node):
             radius_cells=radius_cells, lam=self._ig_lambda, min_size=self._min_size,
             min_gain=self._ig_min_gain,
         )
-        self._publish_frontier_markers(reachable, goal, info)
+        self._publish_frontier_markers(clusters, goal, info)
 
         if goal is None:
             # Every frontier is either too small or blacklisted. Frontiers may

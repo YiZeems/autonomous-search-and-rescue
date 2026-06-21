@@ -74,16 +74,24 @@
 
 ## Results at a glance
 
-One continuous, fully autonomous run: **97.17 % coverage and 4/4 victims**, one click, no prior
+One continuous, fully autonomous run: **97.35 % coverage and 4/4 victims**, one click, no prior
 knowledge of the rooms or the victims' locations.
 
-| Live RViz (map + victims + algorithms) | Real path taken (time-coloured) |
+| Frontier exploration in RViz (lab/TP style) | Gazebo arena (side-on, AprilTags visible) |
 |:--:|:--:|
-| ![Live RViz](docs/report/figures/rviz_live.png) | ![Trajectory](docs/report/figures/trajectory_map.png) |
+| ![Frontiers in RViz](docs/report/figures/rviz_frontiers.png) | ![Gazebo arena](docs/report/figures/gazebo_arena.png) |
 | **Final map: 4 victims + autonomous inspection tour** | **Coverage & path vs. time (90 % target)** |
 | ![Mission map](docs/report/figures/mission_map.png) | ![Coverage](docs/report/figures/coverage_curve.png) |
+| **Live RViz (map + victims + algorithms)** | **Real path taken (time-coloured)** |
+| ![Live RViz](docs/report/figures/rviz_live.png) | ![Trajectory](docs/report/figures/trajectory_map.png) |
 
 ![Algorithms in action - the two BT-orchestrated phases](docs/report/figures/algorithms_two_phase.png)
+
+*Frontier exploration is visualised live in RViz exactly like the labs (CM8): the **frontier cells**
+(free/unknown boundary) are coloured **per cluster**, the yellow sphere is the best-utility goal frontier,
+and the blue line is the Nav2 plan - you watch the coloured rim eat into the unknown up to >90 % coverage.
+Two screen recordings are produced each run: **`results/gazebo_capture.mp4`** (the simulated arena, side-on
+so the wall AprilTags read) and **`results/rviz_capture.mp4`** (the SLAM map + frontiers + inspection).*
 
 *Phase 1 (blue) frontier exploration builds the map; Phase 2 (orange) inspects each room at
 map-derived poses to catch every wall AprilTag. Walls are drawn over the path, which threads the

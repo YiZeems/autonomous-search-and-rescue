@@ -10,7 +10,8 @@ par le Behavior Tree** : **4 victimes + 97 % de couverture + carte propre**).
 | `coverage_curve.png` | Couverture(t) + distance parcourue, ligne objectif 90 %. Montre la mission en 2 phases (explo → inspection). |
 | `annotated_map_hd.png` | Le **livrable énoncé** (« carte finale marquée avec les positions des victimes »), version agrandie. |
 | `mission_replay.mp4` | **Vidéo replay** (data-driven) : robot animé le long du parcours + carte + frontières + victimes révélées au fil du temps. Pour la présentation. |
-| `rviz_capture.mp4` | **Capture vidéo de la vraie sortie RViz** (algos en action) sur toute la mission : carte SLAM construite en direct, frontières, poses d'inspection, plan Nav2, LaserScan, 4 marqueurs victimes. Vue large (toute l'arène). |
+| `rviz_capture.mp4` | **Capture vidéo de la vraie sortie RViz** (algos en action) sur toute la mission : carte SLAM construite en direct, frontières colorées par cluster, poses d'inspection, plan Nav2, LaserScan, 4 marqueurs victimes. Vue large (toute l'arène). Produit à chaque run via un RViz headless dans Xvfb (`IA712_RVIZ_RECORD=1`). |
+| `gazebo_capture.mp4` | **Capture vidéo de la scène Gazebo** (simulateur) sur toute la mission : l'arène, les murs, les victimes (AprilTags) et le robot, vue de côté pour lire les tags. Produit à chaque run via l'enregistreur vidéo intégré d'Ignition (`IA712_GZ_RECORD=1`). |
 | `rviz_live.png` | Screenshot RViz (fin de mission) : carte complète + 4 victimes + éléments d'algo. |
 
 > Note (rendu du parcours) : le parcours est la **vraie trajectoire** échantillonnée à 2 Hz

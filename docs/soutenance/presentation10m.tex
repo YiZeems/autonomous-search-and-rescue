@@ -19,8 +19,8 @@
 \usetheme{default}
 \usecolortheme{default}
 \setbeamercolor{structure}{fg=nccblue}
-\setbeamercolor{frametitle}{fg=white,bg=nccblue}
-\setbeamertemplate{frametitle}{\vspace{2pt}\strut\insertframetitle\strut}
+\setbeamercolor{frametitle}{fg=nccblue}
+\setbeamertemplate{frametitle}{\vspace{0.6mm}{\color{nccblue}\large\bfseries\insertframetitle}\par\vspace{0.3mm}}
 \setbeamertemplate{navigation symbols}{}
 \setbeamertemplate{footline}[frame number]
 \setbeamerfont{frametitle}{series=\bfseries}
@@ -33,7 +33,10 @@
   phase1/.style={box,fill=nccsky!15,draw=nccsky},
   phase2/.style={box,fill=nccorange!15,draw=nccorange},
   io/.style={box,fill=nccgreen!12,draw=nccgreen},
+  proc/.style={box,fill=white},
+  btnode/.style={box,fill=nccblue!12,draw=nccblue},
   ar/.style={-{Latex[length=2mm]},draw=nccdark!70,semithick},
+  arl/.style={ar,font=\tiny,inner sep=1pt},
 }
 
 \title{\textbf{Autonomous Search and Rescue}}
@@ -56,18 +59,18 @@
 \begin{frame}{The mission: autonomous search \& rescue}
   \begin{columns}[T]
   \begin{column}{0.58\linewidth}
-  \textbf{Scenario~[1]:} a robot explores an unknown disaster zone, finds ``victims'' (AprilTags),
+  \textbf{Scenario:} a robot explores an unknown disaster zone, finds ``victims'' (AprilTags),
   and reports their global coordinates - \emph{no human input}.
-  \medskip
+  \smallskip
   \textbf{Requirements we satisfy:}
-  \begin{itemize}
+  {\small\begin{itemize}
     \item Autonomous frontier exploration, map $>90\,\%$
-    \item Camera detection $\to$ \texttt{map} via \texttt{tf2}
+    \item Camera detection to \texttt{map} via \texttt{tf2}
     \item Map quality / loop closure (SLAM)
     \item \textbf{Decision = Behavior Tree, not FSM}
     \item One-click launch
     \item Bonus: greedy vs.\ information-gain
-  \end{itemize}
+  \end{itemize}}
   \end{column}
   \begin{column}{0.40\linewidth}
   \includegraphics[width=\linewidth]{rviz_live}\\
@@ -75,36 +78,42 @@
   \end{column}
   \end{columns}
   \vfill
-  {\footnotesize\color{nccblue}\textbf{Result:} one continuous autonomous run - \textbf{97.17\,\% coverage, 4/4 victims}.}
+  {\footnotesize\color{nccblue}\textbf{Result:} one continuous autonomous run - \textbf{97.35\,\% coverage, 4/4 victims}.}
 \end{frame}
 
 % -- Architecture --
 \begin{frame}{System architecture - four ROS\,2 packages}
   \centering
-  \begin{tikzpicture}[node distance=5mm and 9mm,scale=0.9,transform shape]
-    \node[io] (robot) {TurtleBot~4};
-    \node[box,below=9mm of robot] (slam) {\textbf{slam\_toolbox}};
-    \node[box,right=of slam] (metric) {coverage};
-    \node[box,above=of metric] (april) {apriltag\_ros};
-    \node[box,fill=nccblue!14,right=12mm of metric,text width=28mm] (bt) {\textbf{rescue\_decision $\cdot$ BT}\\\scriptsize WaitForMap$\to$Explore$\to$Inspect};
-    \node[phase1,below=8mm of bt,xshift=-9mm] (explore) {frontier\_explorer\\\scriptsize Phase 1};
-    \node[phase2,right=of explore] (inspect) {inspection\_node\\\scriptsize Phase 2};
-    \node[box,below=8mm of explore,xshift=8mm] (nav) {Nav2};
-    \node[box,above=of bt] (reg) {victim\_registry\\\scriptsize TF2$\to$map};
-    \node[io,right=of bt] (rviz) {RViz / disk};
-    \draw[ar] (robot)--(slam); \draw[ar] (robot.east) to[bend left=12] (april.west);
-    \draw[ar] (slam)--(metric); \draw[ar] (april)--(reg);
-    \draw[ar] (metric)-- node[below,font=\tiny]{/coverage}(bt);
-    \draw[ar] (bt.south) to[out=-120,in=70] node[right,font=\tiny]{enable}(explore.north);
-    \draw[ar] (bt.south) to[out=-60,in=100] node[right,font=\tiny]{enable}(inspect.north);
-    \draw[ar] (inspect.north) to[out=120,in=-20] node[right,font=\tiny]{done}(bt.east);
-    \draw[ar] (explore)--(nav); \draw[ar] (inspect)--(nav);
-    \draw[ar] (nav.west) to[out=180,in=-90] node[left,font=\tiny]{/cmd\_vel}(slam.south);
-    \draw[ar] (reg)--(bt); \draw[ar] (bt)--(rviz);
+  \begin{tikzpicture}[node distance=4mm and 6mm,scale=0.8,transform shape]
+    \node[io] (robot) {TurtleBot~4\\\scriptsize Create~3 + RPLIDAR + OAK-D};
+    \node[proc,below=10mm of robot] (slam) {\textbf{slam\_toolbox}\\\scriptsize async + loop closure};
+    \node[proc,right=of slam] (metric) {\textbf{coverage\_}\\\textbf{evaluator}};
+    \node[proc,above=of metric] (april) {\textbf{apriltag\_ros}\\\scriptsize tag36h11};
+    \node[btnode,right=14mm of metric,text width=30mm] (bt) {\textbf{rescue\_decision $\cdot$ bt\_runner}\\\scriptsize WaitForMap, ExplorePhase, InspectPhase, mission\_done};
+    \node[phase1,below=8mm of bt,xshift=-10mm] (explore) {\textbf{frontier\_}\\\textbf{explorer}\\\scriptsize Phase 1};
+    \node[phase2,right=of explore] (inspect) {\textbf{inspection\_}\\\textbf{node}\\\scriptsize Phase 2};
+    \node[proc,below=8mm of explore,xshift=8mm] (nav) {\textbf{Nav2}\\\scriptsize planner+controller};
+    \node[proc,above=of bt,xshift=2mm] (reg) {\textbf{victim\_}\\\textbf{registry}\\\scriptsize TF2 to map};
+    \node[io,right=of bt] (rviz) {RViz2 / disk\\\scriptsize map, victims};
+    \draw[ar] (robot) -- node[arl,left]{/scan,/odom} (slam);
+    \draw[ar] (robot.east) to[bend left=10] node[arl,above]{/image} (april.west);
+    \draw[ar] (slam) -- (metric);
+    \draw[ar] (april) -- (reg);
+    \draw[ar] (metric) -- node[arl,below]{/coverage} (bt);
+    \draw[ar] (bt.south) to[out=-120,in=60] node[arl,right]{enable} (explore.north);
+    \draw[ar] (bt.south) to[out=-60,in=90] node[arl,right]{enable} (inspect.north);
+    \draw[ar] (inspect.north) to[out=120,in=-30] node[arl,right]{inspect\_done} (bt.east);
+    \draw[ar] (explore) -- (nav);
+    \draw[ar] (inspect) -- (nav);
+    \draw[ar] (nav.west) to[out=180,in=-90] node[arl,left]{/cmd\_vel} (slam.south);
+    \draw[ar] (reg) -- node[arl,above]{count} (bt);
+    \draw[ar] (bt) -- (rviz);
+    \draw[ar,dashed] (slam) to[out=-90,in=180] (inspect.west);
   \end{tikzpicture}
-  \par\medskip
-  {\footnotesize The \textbf{Behavior Tree orchestrates}: it gates the explorer and the inspector via
-  \texttt{/mission/*} topics; the Python nodes do the work.}
+  \par\smallskip
+  {\footnotesize The \textbf{Behavior Tree orchestrates}: it gates the Phase~1 explorer and the Phase~2
+  inspector via \texttt{/mission/*} topics; the Python nodes do the work. SLAM feeds the map to
+  exploration, coverage, Nav2 and inspection.}
 \end{frame}
 
 % -- Two-phase BT --
@@ -128,27 +137,28 @@
   inspects each room at \emph{map-derived} poses (no victim coordinates) to catch every wall tag.}
   \end{column}
   \end{columns}
-  \medskip
+  \smallskip
   {\footnotesize\color{nccblue} Why two phases? Pure exploration maps rooms from doorways but the camera
-  never gets within 2\,m of the wall tags $\Rightarrow$ it caps at $\sim$2 victims.}
+  never gets within 2\,m of the wall tags, so it caps at $\sim$2 victims.}
 \end{frame}
 
 % -- Concepts --
 \begin{frame}{Theoretical foundations (from the course)}
   \begin{columns}[T]
   \begin{column}{0.54\linewidth}
-  \begin{itemize}
-    \item \textbf{SLAM + loop closure} - consistent online map (CM6--7)~[4].
-    \item \textbf{Frontier exploration} - free/unknown boundary~[2]; \emph{information-gain}
-      $g(f)=\text{gain}-\lambda\,\text{cost}$~[3] (CM8). Blacklist for dead frontiers.
+  {\small\begin{itemize}
+    \item \textbf{SLAM + loop closure} - consistent online map (CM6--7).
+    \item \textbf{Frontier exploration} - free/unknown boundary; \emph{information-gain}
+      $g(f)=\text{gain}-\lambda\,\text{cost}$ (CM8). Dead-frontier blacklist
+      (Nav2 failure, or 3$\times$ with no gain, blacklisted).
     \item \textbf{Path planning} - Dijkstra/NavFn vs.\ A*; NavFn kept (tolerant in tight space) (CM9).
-    \item \textbf{TF2} - project camera detection $\to$ global \texttt{map} (CM, requirement~[8]).
-    \item \textbf{Behavior Tree} - reactive, composable; memory \texttt{Sequence}, not an FSM~[6].
-  \end{itemize}
+    \item \textbf{TF2} - project camera detection to global \texttt{map} (CM, requirement).
+    \item \textbf{Behavior Tree} - reactive, composable; memory \texttt{Sequence}, not an FSM.
+  \end{itemize}}
   \end{column}
   \begin{column}{0.44\linewidth}
   \centering
-  \begin{tikzpicture}[font=\scriptsize,scale=0.9,transform shape]
+  \begin{tikzpicture}[font=\scriptsize,scale=0.80,transform shape]
     \fill[nccblue!6] (0,0) rectangle (4.2,2.5); \draw[very thick,nccdark] (0,0) rectangle (4.2,2.5);
     \draw[very thick,nccdark] (1.8,2.5)--(1.8,1.7);\draw[very thick,nccdark] (1.8,0)--(1.8,1.0);
     \node[star,star points=5,fill=nccred,draw=black,inner sep=1.3pt] at (3.9,1.25){};
@@ -172,8 +182,8 @@
   \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b1) at (2.45,2.9){\textbf{\color{nccred}Blocked:} $\sim$2 victims (camera $>$2\,m from tags); loops on dead frontiers.};
   \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b1](i1){\textbf{\color{nccgreen}Improved:} frontier blacklist; RTF knob; $\sim$90\,\% map.};
   \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b2) at (8.05,2.9){\textbf{\color{nccred}Blocked:} completeness $\neq$ camera coverage; rigid patrol fragile.};
-  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b2](i2){\textbf{\color{nccgreen}Improved:} map-derived inspection; \textbf{BT orchestrates} $\Rightarrow$ \textbf{4/4 + 97\,\%}.};
-  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b3) at (13.65,2.9){\textbf{\color{nccred}Blocked:} RTF~1.5 $\to$ 3/4 + GPU stress; figures looked wall-crossing.};
+  \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b2](i2){\textbf{\color{nccgreen}Improved:} map-derived inspection; \textbf{BT orchestrates} : \textbf{4/4 + 97\,\%}.};
+  \node[draw,fill=nccred!8,text width=4.9cm,align=left,inner sep=3pt](b3) at (13.65,2.9){\textbf{\color{nccred}Blocked:} RTF~1.5 gives 3/4 + GPU stress; figures looked wall-crossing.};
   \node[draw,fill=nccgreen!8,text width=4.9cm,align=left,inner sep=3pt,below=2mm of b3](i3){\textbf{\color{nccgreen}Improved:} keep RTF~0.7; walls over path; HD capture.};
   \draw[-{Latex},very thick,nccdark!55] (5.0,3.7)--(5.5,3.7);
   \draw[-{Latex},very thick,nccdark!55] (10.6,3.7)--(11.1,3.7);
@@ -186,29 +196,65 @@
 % -- Results 1 --
 \begin{frame}{Results - live algorithms in RViz}
   \centering
-  \includegraphics[width=0.32\linewidth]{rviz_seq_1}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_3}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_4}\\[3pt]
-  \includegraphics[width=0.32\linewidth]{rviz_seq_5}\hfill
-  \includegraphics[width=0.32\linewidth]{rviz_seq_6}\hfill
-  \includegraphics[width=0.32\linewidth]{trajectory_map}
+  \includegraphics[width=0.275\linewidth]{rviz_seq_1}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_3}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_4}\\[1pt]
+  \includegraphics[width=0.275\linewidth]{rviz_seq_5}\hfill
+  \includegraphics[width=0.275\linewidth]{rviz_seq_6}\hfill
+  \includegraphics[width=0.275\linewidth]{trajectory_map}
   \par\smallskip
-  {\footnotesize Exploration $\to$ inspection $\to$ four victims; bottom-right: the real map-frame path
-  (walls drawn over it, so it visibly threads doorways - no segment crosses a wall).}
+  {\scriptsize Exploration, inspection, four victims; bottom-right: the real map-frame path
+  (walls drawn over it, so it visibly threads the doorways - no segment crosses a wall).}
+\end{frame}
+
+% -- Seeing the algorithm: Gazebo vs RViz frontiers --
+\begin{frame}{Seeing the algorithm: Gazebo (simulator) vs RViz (frontiers)}
+  \begin{columns}[c]
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=0.90\linewidth]{gazebo_arena}\\[2pt]
+  {\scriptsize \textbf{Gazebo} - the simulated arena: walls, victims (AprilTags) and the robot.}
+  \end{column}
+  \begin{column}{0.5\linewidth}\centering
+  \includegraphics[width=0.90\linewidth]{rviz_frontiers}\\[2pt]
+  {\scriptsize \textbf{RViz} - the SLAM map + \emph{frontier cells coloured per cluster}, the goal frontier (yellow) and the Nav2 plan (blue).}
+  \end{column}
+  \end{columns}
+  \smallskip
+  {\footnotesize\color{nccblue}\centering As in the labs (CM8): each frontier \emph{cluster} has its own colour, the robot targets the best utility $g=\text{gain}-\lambda\,\text{cost}$, and you \emph{see} the coloured rim eat into the unknown up to $>90\,\%$. Captures: \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
+\end{frame}
+
+% -- Demonstration (video) --
+\begin{frame}{Demonstration}
+  \centering
+  \vfill
+  {\large\bfseries \underline{Démo RobotZ}}\\[3mm]
+  \href{https://www.youtube.com/watch?v=BKXprWFloFs}{\includegraphics[width=0.60\linewidth]{youtube_demo.jpg}}\\[3mm]
+  {\footnotesize Full-mission video (autonomous run, one click):
+  \url{https://www.youtube.com/watch?v=BKXprWFloFs}}
+  \vfill
+\end{frame}
+
+% -- Bonus: coverage benchmark --
+\begin{frame}{Bonus: map coverage - greedy vs information-gain}
+  \centering
+  \includegraphics[width=0.62\linewidth]{coverage_over_time}\\[1.5mm]
+  {\footnotesize\color{nccblue} Benchmark $n{=}3$: \textbf{information-gain} (orange) reaches the 90\,\%
+  target; \textbf{greedy} (blue) plateaus at $\sim$67--70\,\% and never reaches it - it commits to opening
+  whole rooms (more unknown per metre), whereas greedy nibbles locally and stalls.}
 \end{frame}
 
 % -- Results 2 --
 \begin{frame}{Results - coverage, map and conformity}
   \begin{columns}[c]
   \begin{column}{0.5\linewidth}\centering
-  \includegraphics[width=\linewidth]{coverage_curve}\\{\scriptsize Coverage \& path vs.\ time, 90\,\% target.}
+  \includegraphics[width=0.96\linewidth]{coverage_curve}\\{\scriptsize Coverage \& path vs.\ time, 90\,\% target.}
   \end{column}
   \begin{column}{0.5\linewidth}\centering
-  \includegraphics[width=0.86\linewidth]{mission_map}\\{\scriptsize Final map: 4 victims + autonomous inspection tour.}
+  \includegraphics[width=0.72\linewidth]{mission_map}\\{\scriptsize Final map: 4 victims + autonomous inspection tour.}
   \end{column}
   \end{columns}
-  \medskip
-  {\footnotesize\color{nccblue}\centering \textbf{97.17\,\% coverage $\cdot$ 4/4 victims $\cdot$ annotated map $\cdot$ logged trajectory} - one click, fully autonomous.}
+  \smallskip
+  {\footnotesize\color{nccblue}\centering \textbf{97.35\,\% coverage $\cdot$ 4/4 victims $\cdot$ annotated map $\cdot$ logged trajectory} - one click, fully autonomous.}
 \end{frame}
 
 % -- Team / git --
@@ -237,7 +283,7 @@
     \draw[-{Latex},nccorange,thick] (5,0.5) .. controls (5.4,-0.3) .. (6.0,-0.95);
     \fill[nccblue] (6.6,-1.0) circle (2pt);
   \end{tikzpicture}\\
-  {\scriptsize Three workstreams $\to$ \texttt{bl} integration.}
+  {\scriptsize Three workstreams to \texttt{bl} integration.}
   \end{column}
   \end{columns}
 \end{frame}
