@@ -143,16 +143,16 @@
 \end{frame}
 
 % -- Concepts --
-\begin{frame}{Theoretical foundations (from the course)}
+\begin{frame}{Theoretical foundations}
   \begin{columns}[T]
   \begin{column}{0.54\linewidth}
   {\small\begin{itemize}
-    \item \textbf{SLAM + loop closure} - consistent online map (CM6--7).
+    \item \textbf{SLAM + loop closure} - consistent online map.
     \item \textbf{Frontier exploration} - free/unknown boundary; \emph{information-gain}
-      $g(f)=\text{gain}-\lambda\,\text{cost}$ (CM8). Dead-frontier blacklist
+      $g(f)=\text{gain}-\lambda\,\text{cost}$. Dead-frontier blacklist
       (Nav2 failure, or 3$\times$ with no gain, blacklisted).
-    \item \textbf{Path planning} - Dijkstra/NavFn vs.\ A*; NavFn kept (tolerant in tight space) (CM9).
-    \item \textbf{TF2} - project camera detection to global \texttt{map} (CM, requirement).
+    \item \textbf{Path planning} - Dijkstra/NavFn vs.\ A*; NavFn kept (tolerant in tight space).
+    \item \textbf{TF2} - project camera detection to global \texttt{map} (project requirement).
     \item \textbf{Behavior Tree} - reactive, composable; memory \texttt{Sequence}, not an FSM.
   \end{itemize}}
   \end{column}
@@ -208,7 +208,7 @@
 \end{frame}
 
 % -- Seeing the algorithm: Gazebo vs RViz frontiers --
-\begin{frame}{Seeing the algorithm: Gazebo (simulator) vs RViz (frontiers)}
+\begin{frame}{Seeing the algorithm: Gazebo vs RViz}
   \begin{columns}[c]
   \begin{column}{0.5\linewidth}\centering
   \includegraphics[width=0.90\linewidth]{gazebo_arena}\\[2pt]
@@ -220,7 +220,7 @@
   \end{column}
   \end{columns}
   \smallskip
-  {\footnotesize\color{nccblue}\centering As in the labs (CM8): each frontier \emph{cluster} has its own colour, the robot targets the best utility $g=\text{gain}-\lambda\,\text{cost}$, and you \emph{see} the coloured rim eat into the unknown up to $>90\,\%$. Captures: \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
+  {\footnotesize\color{nccblue}\centering Each frontier \emph{cluster} has its own colour, the robot targets the best utility $g=\text{gain}-\lambda\,\text{cost}$, and you \emph{see} the coloured rim eat into the unknown up to $>90\,\%$. Captures: \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
 \end{frame}
 
 % -- Demonstration (video) --

@@ -85,18 +85,16 @@ camera detections into the global \texttt{map} frame with \texttt{tf2}. Decision
 \emph{Behavior Tree} (not an FSM, as required~[1]) that orchestrates a \textbf{two-phase mission}:
 frontier exploration, then map-derived room inspection. The final autonomous run reaches
 \textbf{97.35\,\% coverage and 4/4 victims} in one click. This report covers the system
-architecture, the theoretical foundations from the course, the team's decision journey across
+architecture, the theoretical foundations, the team's decision journey across
 three representative runs, and the lessons learned.}}
 
 % =================== 1. INTRODUCTION ===================
 \section{Problem statement and requirements}
 Search-and-rescue robotics addresses a simple but demanding question: when an environment is too
-dangerous for people - a collapsed building, a flooded basement, a nuclear accident zone - can a
-robot go in alone, understand a space it has never seen, and bring back the one piece of information
-that matters, namely \emph{where the victims are}? This project is a simulated, self-contained answer
-to that question, and a synthesis of the whole IA712 course: it ties together SLAM, autonomous
-exploration, navigation and decision-making into a single system that runs from one command and needs
-no human in the loop.
+dangerous for people - a collapsed building, a flooded basement - can a robot go in alone, understand a
+space it has never seen, and report \emph{where the victims are}? This project is a self-contained answer:
+it ties together SLAM, autonomous exploration, navigation and decision-making into a single system that
+runs from one command and needs no human in the loop.
 
 The scenario~[1] places a robot in a simulated disaster zone where humans cannot go. The robot
 must \emph{explore autonomously} an unknown environment, \emph{localize victims} (AprilTags), and
@@ -127,8 +125,7 @@ with one AprilTag ``victim'' on an outer wall of each room. The robot is a \text
 base, RPLIDAR~A1M8, OAK-D camera) simulated in \textbf{Ignition Gazebo Fortress}. From a single launch,
 the robot maps the building by SLAM, autonomously visits every room, detects the four tags, projects
 them into the \texttt{map} frame, and stops on a clean annotated map - with \emph{no} prior knowledge
-of the rooms or the victims' locations. The next sections describe the architecture, the course concepts
-it applies, and how we got there.
+of the rooms or the victims' locations. The next sections describe the architecture, the concepts it applies, and how we got there.
 
 % =================== 2. ARCHITECTURE ===================
 \section{System architecture}
@@ -146,8 +143,7 @@ the Behavior Tree, the victim registry and the RViz visualisation against lightw
 long before the full Gazebo stack existed. Just as importantly, the design draws a firm line between
 \emph{policy} and \emph{mechanism}: the Behavior Tree decides \emph{which} phase should run and \emph{when}
 to move on, while the Python nodes are pure executors that know nothing of the overall mission. That line
-is what makes the system easy to reason about, and it is what the next two sections unfold - first the
-course concepts the mechanisms rest on, then the mission the policy assembles from them.
+is what makes the system easy to reason about, and it is what the next two sections unfold - first the concepts the mechanisms rest on, then the mission the policy assembles from them.
 
 \begin{figure}[htbp]
 \centering
@@ -209,16 +205,21 @@ projects it to \texttt{map} via TF2, deduplicates by ID, and persists \texttt{re
 the ``report their coordinates in the global frame'' requirement.
 
 % =================== 3. THEORETICAL FOUNDATIONS ===================
-\section{Theoretical foundations (from the course)}\label{sec:concepts}
+\section{Theoretical foundations}\label{sec:concepts}
 \head{SLAM and loop closure.} The robot builds the map online with \texttt{slam\_toolbox} (pose-graph
-SLAM). Loop closure - emphasised in the course - corrects accumulated drift when the robot
+SLAM). Loop closure corrects accumulated drift when the robot
 re-observes a known place, keeping the global map consistent during repeated passes~[4,9].
 
-\head{Frontier exploration and information gain (CM8).} A \emph{frontier} is the boundary between
+\head{Frontier exploration and information gain.} A \emph{frontier} is the boundary between
 free and unknown cells~[2]. Greedy selection takes the nearest frontier; \emph{information-gain}
 selection maximises $\,g(f)=\mathrm{gain}(f)-\lambda\cdot\mathrm{cost}(f)\,$~[3], where $\mathrm{cost}$
 is the \emph{Nav2 path length} (not Euclidean). Our $n{=}3$ benchmark confirms the theory: info-gain
-reaches $0.85\pm0.08$ coverage (the only one above $90\,\%$) vs.\ $0.72$ for greedy. A key robustness
+reaches $0.85\pm0.08$ coverage (the only one above $90\,\%$) vs.\ $0.72$ for greedy. \emph{Why} the gap
+widens \emph{over time} (Fig.~\ref{fig:bench}): greedy, drawn to the nearest frontier, keeps refining the
+already-open area and defers distant rooms, so it plateaus ($\sim$67--70\,\%); information-gain prefers the
+frontier that reveals the \emph{most unknown per metre} (a doorway opening a whole room), so each move
+buys more coverage and the curve crosses $90\,\%$ - and since the cost is the Nav2 path length (not
+Euclidean), walls are accounted for. A key robustness
 addition is an \emph{inaccessible-frontier blacklist} keyed by a quantized world coordinate, so a dead
 frontier never gets reselected even as the grid origin shifts. Concretely, a frontier is blacklisted
 either when Nav2 fails to reach it, or when it is re-selected \textbf{3 times in a row without any
@@ -227,38 +228,30 @@ coverage gain} (the common case in our arena); it is then never proposed again.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.72\linewidth]{rviz_frontiers}
-\caption{Frontier exploration visualised in RViz (lab/TP style, CM8): the \emph{frontier cells} (the
-free/unknown boundary) are coloured \textbf{per cluster} (connected-component segmentation), the yellow
-sphere marks the best-utility goal frontier, and the blue line is the matching Nav2 plan. You \emph{see}
-the coloured rim eat into the unknown up to $>90\,\%$ coverage (capture: \texttt{rviz\_capture.mp4}).}
+\caption{Frontier exploration in RViz, the shape and colour of every element:
+\textbf{coloured cubes} = frontier cells (free/unknown boundary), \textbf{one colour per cluster}
+(connected component); \textbf{same-colour spheres} = cluster centroids; \textbf{large yellow sphere} =
+the chosen goal frontier ($g=\mathrm{gain}-\lambda\,\mathrm{cost}$); \textbf{blue line} = the Nav2 plan;
+\textbf{RGB axes} = the robot (TF). Light grey = known-free, blue-grey = unknown, black/red = walls.}
 \label{fig:rviz-frontiers}
 \end{figure}
 
-\head{Path planning and control (CM9--CM10).} The global planner produces a geometric path; the local
+\head{Path planning and control.} The global planner produces a geometric path; the local
 controller follows it. We compared \emph{Dijkstra/NavFn} vs.\ \emph{A* (Smac)}~[9]: in a tightly
 partitioned arena the robot often stands inside the inflation layer, where A* refuses to plan
-(``start in lethal space''); NavFn tolerates this and is kept. The controller is DWB (sampling-based,
-CM10).
+(``start in lethal space''); NavFn tolerates this and is kept. The controller is DWB (sampling-based).
 
 \begin{figure}[htbp]
 \centering
-\begin{subfigure}{0.40\linewidth}\centering
-\begin{tikzpicture}[font=\scriptsize]
-  \draw[->,semithick] (0,0)--(0,2.7) node[above,font=\tiny]{coverage};
-  \draw[semithick] (0,0)--(3.6,0);
-  \draw[dashed,nccred,thick] (0,2.25)--(3.6,2.25) node[right,font=\tiny,nccred]{90\,\% target};
-  \fill[nccsky] (0.55,0) rectangle (1.45,1.80);
-  \fill[nccgreen] (2.15,0) rectangle (3.05,2.12);
-  \node[font=\tiny] at (1.0,-0.22){greedy}; \node[font=\tiny] at (1.0,2.0){0.72};
-  \node[font=\tiny] at (2.6,-0.22){info-gain}; \node[font=\tiny] at (2.6,2.32){\textbf{0.85}};
-  \draw[{Latex}-{Latex},nccgreen!70] (3.05,2.0)--(3.05,2.24);
-\end{tikzpicture}
-\caption{Bonus benchmark ($n{=}3$): information-gain is the only strategy above 90\,\% coverage.}
+\begin{subfigure}{0.42\linewidth}\centering
+\includegraphics[width=\linewidth]{coverage_over_time}
+\caption{Bonus ($n{=}3$) - map coverage \emph{over time}: \textbf{information-gain} (orange) reaches the
+90\,\% target, \textbf{greedy} (blue) plateaus at $\sim$67--70\,\% (reasons detailed in the text).}
 \end{subfigure}\hfill
-\begin{subfigure}{0.56\linewidth}\centering\footnotesize
+\begin{subfigure}{0.55\linewidth}\centering\footnotesize
 \begin{tabular}{@{}lll@{}}
 \toprule
-Planner & Property (CM9) & Status in \texttt{bl}\\
+Planner & Property & Status in \texttt{bl}\\
 \midrule
 Dijkstra/NavFn & optimal, explores all, tolerant & \textbf{chosen} (robust)\\
 A* (Smac) & heuristic, faster, strict & tested, rejected here\\
@@ -269,7 +262,7 @@ RRT & fast, non-optimal & outlook\\
 \emph{Why NavFn:} in a partitioned arena the start is often in the inflation layer; A* aborts there,
 NavFn does not.
 \end{subfigure}
-\caption{Exploration strategy (bonus) and global-planner comparison, grounded in the course.}
+\caption{Exploration strategy (bonus) and global-planner comparison.}
 \label{fig:bench}
 \end{figure}
 
@@ -308,9 +301,9 @@ accumulated drift and keeps the global map consistent across repeated passes.}
 \caption{A \emph{frontier} is the free/unknown boundary (green); information-gain selects the most
 informative one, scored by Nav2 \emph{path} cost (not Euclidean).}
 \end{subfigure}
-\caption{Two course concepts: pose-graph SLAM with loop closure (CM6--7) and frontier exploration
-with information gain (CM8).}
-\label{fig:course}
+\caption{Two key concepts: pose-graph SLAM with loop closure and frontier exploration
+with information gain.}
+\label{fig:keyconcepts}
 \end{figure}
 
 \begin{figure}[htbp]
@@ -380,24 +373,24 @@ victims. Walls are drawn over the path, so it visibly threads the doorways.}
 \label{fig:bt}
 \end{figure}
 
-\head{Course concepts \emph{applied} in the project.} Table~\ref{tab:concepts} maps each lecture topic
-to where it lives in our system - the project is essentially the course made concrete.
+\head{Concepts \emph{applied} in the project.} Table~\ref{tab:concepts} maps each topic
+to where it lives in our system.
 
 \begin{table}[htbp]\centering\footnotesize
 \begin{tabular}{@{}p{0.30\linewidth}p{0.66\linewidth}@{}}
 \toprule
-\textbf{Course concept} & \textbf{Where it is applied in \texttt{bl}}\\
+\textbf{Concept} & \textbf{Where it is applied in \texttt{bl}}\\
 \midrule
-SLAM + loop closure (CM6--7) & \texttt{slam\_toolbox} (async): online \texttt{/map} + \texttt{map}$\to$\texttt{odom} TF, loop closure on revisits\\
-Frontier exploration (CM8) & \texttt{frontier\_explorer\_node}: free/unknown boundary, world-keyed blacklist\\
-Information gain (CM8, bonus) & info-gain frontier selection; quantitative benchmark vs.\ greedy ($n{=}3$)\\
-Path planning (CM9) & Nav2 global planner - NavFn (Dijkstra) kept; A* (Smac) compared\\
-Local control (CM10) & Nav2 DWB controller (sampling-based trajectory scoring)\\
+SLAM + loop closure & \texttt{slam\_toolbox} (async): online \texttt{/map} + \texttt{map}$\to$\texttt{odom} TF, loop closure on revisits\\
+Frontier exploration & \texttt{frontier\_explorer\_node}: free/unknown boundary, world-keyed blacklist\\
+Information gain (bonus) & info-gain frontier selection; quantitative benchmark vs.\ greedy ($n{=}3$)\\
+Path planning & Nav2 global planner - NavFn (Dijkstra) kept; A* (Smac) compared\\
+Local control & Nav2 DWB controller (sampling-based trajectory scoring)\\
 Coordinate frames / TF2 & \texttt{victim\_registry}: camera$\to$\texttt{victim}$_i\to$\texttt{map} projection\\
 Behavior Trees (decision) & \texttt{rescue\_decision} (BT.CPP~v3): the two-phase mission orchestration\\
 \bottomrule
 \end{tabular}
-\caption{The course concepts, and exactly where each one is applied in the project.}
+\caption{The key concepts, and exactly where each one is applied in the project.}
 \label{tab:concepts}
 \end{table}
 
@@ -565,7 +558,7 @@ are merged into \texttt{dev/bl}, the integration branch.}
 % =================== 6. RESULTS ===================
 \section{Results}
 Fig.~\ref{fig:seq} shows the live RViz algorithms across the mission; Fig.~\ref{fig:results} the
-deliverable artefacts. All come from the single final run (\texttt{results/examples/l18\_nominal}).
+deliverable artefacts. All come from the single final run (\texttt{results/examples/l18\_nominal}). A full-mission demo video is available: \url{https://www.youtube.com/watch?v=BKXprWFloFs}.
 
 \begin{figure}[htbp]
 \centering
@@ -690,7 +683,7 @@ to try a Regulated Pure Pursuit controller for smoother doorway traversals, and 
 and let the Behavior Tree coordinate a shared map.
 
 \section*{Acknowledgements}
-We warmly thank \textbf{Zhi Yan}, Teacher-Researcher at ENSTA, for the IA712 course and guidance that
+We warmly thank \textbf{Zhi Yan}, Teacher-Researcher at ENSTA, for the IA712 module and guidance that
 made this project possible.
 
 % =================== REFERENCES ===================
@@ -698,7 +691,7 @@ made this project possible.
 \small
 \begin{thebibliography}{99}
 \setlength{\itemsep}{0pt}
-\bibitem{assign} IA712 Mobile Robotics - Final Project, Project~B (assignment). Course site: \url{https://yzrobot.github.io/IA712/}.
+\bibitem{assign} IA712 Mobile Robotics - Final Project, Project~B (assignment). Site: \url{https://yzrobot.github.io/IA712/}.
 \bibitem{yamauchi} B.~Yamauchi, \emph{A frontier-based approach for autonomous exploration}, IEEE CIRA, 1997.
 \bibitem{stachniss} C.~Stachniss et al., \emph{Information gain-based exploration using Rao-Blackwellized particle filters}, ICRA, 2005.
 \bibitem{slamtb} S.~Macenski, I.~Jambrecic, \emph{slam\_toolbox: SLAM for the dynamic world}, JOSS, 2021.
@@ -706,7 +699,7 @@ made this project possible.
 \bibitem{btcpp} D.~Faconti et al., \emph{BehaviorTree.CPP} library, \url{https://www.behaviortree.dev/}.
 \bibitem{apriltag} E.~Olson, \emph{AprilTag: A robust and flexible visual fiducial system}, ICRA, 2011; \texttt{apriltag\_ros}.
 \bibitem{tf2} T.~Foote, \emph{tf2: The transform library}, IEEE TePRA, 2013.
-\bibitem{cm} IA712 lecture notes (CM6--CM10: SLAM, Exploration, Path Planning, Control), \url{https://yzrobot.github.io/IA712/}.
+\bibitem{cm} IA712 Mobile Robotics - reference material, \url{https://yzrobot.github.io/IA712/}.
 \bibitem{repo} Project repository, \url{https://github.com/YiZeems/autonomous-search-and-rescue}.
 \end{thebibliography}
 \endgroup

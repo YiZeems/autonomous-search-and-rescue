@@ -143,15 +143,15 @@
 \end{frame}
 
 % -- Concepts --
-\begin{frame}{Fondements théoriques (issus du cours)}
+\begin{frame}{Fondements théoriques}
   \begin{columns}[T]
   \begin{column}{0.54\linewidth}
   {\small\begin{itemize}
-    \item \textbf{SLAM + fermeture de boucle} - carte en ligne cohérente (CM6--7).
+    \item \textbf{SLAM + fermeture de boucle} - carte en ligne cohérente.
     \item \textbf{Exploration par frontières} - limite libre/inconnu ; \emph{gain d'information}
-      $g(f)=\text{gain}-\lambda\,\text{coût}$ (CM8). Liste noire des frontières mortes (échec Nav2, ou 3$\times$ sans gain, écartée).
-    \item \textbf{Planification de chemin} - Dijkstra/NavFn vs.\ A* ; NavFn conservé (tolérant en espace étroit) (CM9).
-    \item \textbf{TF2} - projection détection caméra vers le repère global \texttt{map} (CM, exigence).
+      $g(f)=\text{gain}-\lambda\,\text{coût}$. Liste noire des frontières mortes (échec Nav2, ou 3$\times$ sans gain, écartée).
+    \item \textbf{Planification de chemin} - Dijkstra/NavFn vs.\ A* ; NavFn conservé (tolérant en espace étroit).
+    \item \textbf{TF2} - projection détection caméra vers le repère global \texttt{map} (exigence du projet).
     \item \textbf{Arbre de Comportement} - réactif, composable ; \texttt{Sequence} à mémoire, pas une FSM.
   \end{itemize}}
   \end{column}
@@ -207,7 +207,7 @@
 \end{frame}
 
 % -- Voir l'algorithme : Gazebo vs RViz frontieres --
-\begin{frame}{Voir l'algorithme : Gazebo (simulateur) vs RViz (frontières)}
+\begin{frame}{Voir l'algorithme : Gazebo vs RViz}
   \begin{columns}[c]
   \begin{column}{0.5\linewidth}\centering
   \includegraphics[width=0.90\linewidth]{gazebo_arena}\\[2pt]
@@ -219,7 +219,7 @@
   \end{column}
   \end{columns}
   \smallskip
-  {\footnotesize\color{nccblue}\centering Comme en TP (CM8) : chaque \emph{cluster} de frontières a sa couleur, le robot vise la meilleure utilité $g=\text{gain}-\lambda\,\text{coût}$, et l'on \emph{voit} le liseré grignoter l'inconnu jusqu'à $>90\,\%$. Captures : \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
+  {\footnotesize\color{nccblue}\centering Chaque \emph{cluster} de frontières a sa couleur, le robot vise la meilleure utilité $g=\text{gain}-\lambda\,\text{coût}$, et l'on \emph{voit} le liseré grignoter l'inconnu jusqu'à $>90\,\%$. Captures : \texttt{gazebo\_capture.mp4} \& \texttt{rviz\_capture.mp4}.}
 \end{frame}
 
 % -- Démonstration (vidéo) --
