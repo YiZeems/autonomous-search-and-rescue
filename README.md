@@ -15,6 +15,7 @@
 - [Results](#results)
 - [Known limitations](#known-limitations)
 - [References](#references)
+- [Acknowledgements](#acknowledgements)
 - [License](#license)
 
 ## Overview
@@ -113,7 +114,7 @@ flowchart LR
 
 One continuous, fully autonomous run: **97.35 % coverage and 4/4 victims**, one click, with no prior knowledge of the rooms or the victims' locations.
 
-▶ **Demo video:** [youtube.com/watch?v=BKXprWFloFs](https://www.youtube.com/watch?v=BKXprWFloFs)
+**Demo video:** [youtube.com/watch?v=BKXprWFloFs](https://www.youtube.com/watch?v=BKXprWFloFs)
 
 | Frontier exploration in RViz | Gazebo arena (AprilTags visible) |
 |:--:|:--:|
@@ -148,6 +149,10 @@ Deliverables in [`docs/soutenance/`](docs/soutenance/):
 - [BehaviorTree.CPP](https://www.behaviortree.dev/): Behavior Tree engine (with the Groot monitor)
 - Yamauchi, B. (1997). *A frontier-based approach for autonomous exploration*. CIRA.
 - Stachniss, C., Grisetti, G., Burgard, W. (2005). *Information Gain-based Exploration Using Rao-Blackwellized Particle Filters*. RSS.
+
+## Acknowledgements
+
+Our warm thanks to [Zhi Yan](https://yzrobot.github.io/), Teacher-Researcher at ENSTA, for the [IA712 Mobile Robotics course](https://yzrobot.github.io/IA712/) and his guidance throughout this project.
 
 ## License
 
