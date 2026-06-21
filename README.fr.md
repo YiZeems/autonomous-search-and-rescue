@@ -380,6 +380,21 @@ Arguments du `bringup_tb4.launch.py` :
 | `IA712_TB4_GUI`         | `1`    | `0` = Ignition headless (pas de fenêtre Gazebo, CI / RAM limitée) |
 | `IA712_RVIZ`            | `1`    | `0` = run entièrement headless (pas de RViz)                 |
 
+### L17 - benchmark d'exploration (glouton vs gain d'information)
+
+```bash
+# runs de comparaison réels (2 stratégies × N runs, headless) → experiments/<algo>_run<n>/
+env -i HOME="$HOME" PATH=/usr/bin:/bin TERM=xterm DISPLAY=:0 \
+  IA712_BENCH_RUNS=3 IA712_BENCH_DURATION=600 \
+  bash scripts/sh/run_benchmark.sh
+
+# construit les graphiques + le tableau de synthèse à partir des runs existants
+python3 scripts/plot_benchmark.py experiments
+# → experiments/plots/coverage_over_time.png, summary_bars.png, experiments/summary.md
+```
+
+Voir [`docs/exploration_benchmark.md`](docs/exploration_benchmark.md) pour les métriques et l'hypothèse.
+
 ### Autres commandes de l'orchestrateur
 
 ```bash
